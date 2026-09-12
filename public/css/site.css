@@ -31,6 +31,15 @@ section {
   outline-offset: 2px;
 }
 
+/*
+ *   tabs.css caps each tab at 22% width with overflow hidden, which cuts off
+ *   labels on narrow screens. Let tabs size to their labels and wrap instead.
+ *   Three attribute/class selectors outrank tabs.css's [role="tab"]:focus.
+ */
+.tabs [role="tablist"] [role="tab"] {
+  max-width: none;
+}
+
 /* Keep the open menu above positioned content (tabs use z-index 2). */
 .menu-button-actions [role="menu"] {
   z-index: 3;
