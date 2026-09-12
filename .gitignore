@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------
+# Local-only reference material. NEVER commit this.
+# It is the previous hackathon attempt (AccessiFix), kept on disk
+# purely as a reference for ideas and UI patterns. Its code is not
+# reused, and it contains real .env secrets.
+# ---------------------------------------------------------------
+Do not push to github/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies / build output
+node_modules/
+.next/
+dist/
+build/
+.vercel/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
