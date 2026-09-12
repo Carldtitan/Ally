@@ -1,0 +1,12 @@
+{
+  "name": "clean-app-verify",
+  "private": true,
+  "description": "axe and keyboard checks for the clean-app control page",
+  "scripts": {
+    "verify": "node verify.js"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "playwright": "1.63.0"
+  }
+}
