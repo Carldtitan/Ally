@@ -327,117 +327,100 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     # running is a question about the page, not a question for whoever pasted the
     # URL: the recorder reports how many elements declare themselves a menu
     # trigger or a dialog, and that decides it.
-    job.say("audit", "Driving the page")
-    results = list(audit.run())
+    # Ask the repository what pages exist, before auditing anything. Crawling
+    # a[href] only finds what the entry page links: BitEstate's router declares
+    # ten routes and its landing page links to two, the rest being behind a
+    # login. The source has no such blind spot.
+    #
+    # This runs BEFORE the first audit on purpose. It used to audit the entry
+    # page alone, then discover, then start the rest -- so for the first minute
+    # there was one sandbox on screen and nothing to suggest more were coming.
+    from ui.fleet import Lane, MAX_SANDBOXES, run_lanes
+    from ui.routes import routes_from_repo
 
-    # A page that did not load is not a clean page. Chrome's own network error
-    # screen has two reachable buttons, Reload and Back, and a complete DOM, so
-    # every check passes on it. A run against clearway reported four passes on
-    # exactly that. This is checked before anything is believed.
-    first = audit.recordings.get("loaded")
-    note = first.loaded_note if first is not None else "nothing was recorded"
-    if note:
-        raise RuntimeError(
-            f"the page did not load, so there is nothing to audit: {note}"
-            + (f" (title {first.title!r})" if first is not None and first.title else ""))
-    job.pages.append({"url": job.url, "source": "", "findings": 0})
+    urls = routes_from_repo(audit.session, CHECKOUT, job.url, limit=MAX_SANDBOXES)
+    if not urls:
+        urls = [job.url]
 
-    extra = []
-    first = audit.recordings.get("loaded")
-    if first is not None and not states:
-        if getattr(first, "menu_triggers", 0):
-            extra.append("menu-generic")
-        if getattr(first, "dialog_triggers", 0):
-            extra.append("dialog-generic")
-    if extra:
-        job.say("audit", f"The page declares a {' and a '.join(x.split('-')[0] for x in extra)}"
-                         f"; tabbing {'those' if len(extra) > 1 else 'that'} too")
-        more = Audit(job.url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
-                     states=extra, run_id=f"{job.id}-more", use_weave=False,
-                     judge=audit.judge)
-        more.session = audit.session
-        results += list(more.run())
-        audit.recordings.update(more.recordings)
-        audit.results = results
+    if len(urls) > 1:
+        job.say("audit", f"{len(urls)} routes declared in the repository: "
+                         + ", ".join(u.replace(job.url.rstrip('/'), '') or '/'
+                                     for u in urls))
+    else:
+        # One declared route. Try the links on the page next -- a static site
+        # with no framework has neither route files nor a router config -- and
+        # only then treat the page as a flow whose steps are its pages.
+        linked = find_pages(audit.session, job.url, limit=MAX_SANDBOXES)
+        if linked:
+            job.say("audit", f"one declared route, {len(linked)} linked page(s)")
+            urls = [job.url] + linked[: MAX_SANDBOXES - 1]
+        else:
+            from ui.steps import discover_steps, register_step_state
 
-    # A multipage app audited at its front door tells you about the front door.
-    # Each extra page gets its own sandbox, its own browser and its own desktop,
-    # so one page that hangs cannot affect another and the wall clock is the
-    # slowest page rather than the sum of them.
-    extra_pages = find_pages(audit.session, job.url) if not states else []
-    if extra_pages:
-        job.say("audit", f"{len(extra_pages)} more page(s) linked from here; "
-                         f"driving {'them' if len(extra_pages) > 1 else 'it'} too")
-    # Linked pages first. When there are none -- and a single-page app has none,
-    # because it navigates by pressing buttons rather than following hrefs --
-    # the states of the one page are the pages. Clearway's repository has one
-    # route, app/page.tsx, and everything a visitor calls a screen is a step
-    # inside it, so a run that only crawls links reports "1 page" on an app that
-    # plainly has more.
-    step_lanes: list = []
-    if not extra_pages and not states:
-        from ui.steps import discover_steps, register_step_state
+            steps = discover_steps(audit.session, job.url, limit=MAX_SANDBOXES - 1)
+            if steps:
+                job.say("audit", f"one route and no links; {len(steps)} step(s) "
+                                 "inside this page: "
+                                 + ", ".join(x["label"] for x in steps))
 
-        steps = discover_steps(audit.session, job.url,
-                               limit=MAX_LANES - 1)
-        if steps:
-            job.say("audit", "no linked pages; "
-                             f"{len(steps)} step(s) inside this one: "
-                             + ", ".join(s["label"] for s in steps))
+    lanes = [Lane(index=0, url=urls[0])]
+    if len(urls) > 1:
+        lanes += [Lane(index=i + 1, url=u) for i, u in enumerate(urls[1:])]
+    elif "steps" in dir() and steps:
         for i, st in enumerate(steps):
             name = register_step_state(f"step-{i + 1}", st["selector"])
-            step_lanes.append((name, st["label"]))
+            lanes.append(Lane(index=i + 1, url=job.url, state=name,
+                              label=st["label"]))
 
-    if extra_pages or step_lanes:
-        from ui.fleet import Lane, MAX_SANDBOXES, run_lanes
+    job.lanes = [l.to_dict() for l in lanes]
+    job.say("audit", f"{len(lanes)} sandbox(es) starting together")
 
-        if extra_pages:
-            lanes = [Lane(index=i + 1, url=u)
-                     for i, u in enumerate(extra_pages[: MAX_SANDBOXES - 1])]
-        else:
-            lanes = [Lane(index=i + 1, url=job.url, label=label, state=name)
-                     for i, (name, label) in enumerate(step_lanes)]
-        job.lanes = [l.to_dict() for l in lanes]
-        job.say("audit", f"{len(lanes)} more, one sandbox each, in parallel")
-
-        def say(i: int, msg: str, level: str) -> None:
-            job.say("audit", f"page {i}: {msg}", level)
-            job.lanes = [l.to_dict() for l in lanes]
-
-        run_lanes(lanes, ["loaded"], audit.judge, say)
+    def say(i: int, msg: str, level: str) -> None:
+        job.say("audit", f"[{i}] {msg}", level)
         job.lanes = [l.to_dict() for l in lanes]
 
-        from agent.recording import Census, Result
+    run_lanes(lanes, states or ["loaded"], audit.judge, say)
+    job.lanes = [l.to_dict() for l in lanes]
 
-        for lane in lanes:
-            if lane.status != "done":
-                continue
-            for f in lane.findings:
-                fields = {k: (tuple(v) if isinstance(v, list) else v)
-                          for k, v in f.items() if k != "census"}
-                results.append(Result(census=Census(**(f.get("census") or {})),
-                                      **fields))
-            short = lane.label or lane.url.rstrip("/").rsplit("/", 1)[-1] or "home"
-            for st, r in lane.recordings.items():
-                audit.recordings[f"{st} · {short}"] = r
-            job.pages.append({
-                "url": (f"{lane.url}  ({lane.label})" if lane.label else lane.url),
-                "source": "",
-                "findings": sum(1 for f in lane.findings
-                                if f.get("status") == "failed")})
+    from agent.recording import Census, Result
+
+    results = []
+    for lane in lanes:
+        if lane.status != "done":
+            job.pages.append({"url": lane.url, "source": "",
+                              "findings": 0, "note": lane.note or lane.status})
+            continue
+        for f in lane.findings:
+            fields = {k: (tuple(v) if isinstance(v, list) else v)
+                      for k, v in f.items() if k != "census"}
+            results.append(Result(census=Census(**(f.get("census") or {})), **fields))
+        short = lane.label or (lane.url.rstrip("/").rsplit("/", 1)[-1] or "home")
+        for st, r in lane.recordings.items():
+            audit.recordings[f"{st} · {short}"] = r
+        if not audit.axe and lane.axe.get("ran"):
+            audit.axe = type("A", (), lane.axe)
+        job.pages.append({
+            "url": (f"{lane.url}  ({lane.label})" if lane.label else lane.url),
+            "source": "",
+            "findings": sum(1 for f in lane.findings if f.get("status") == "failed"),
+            "note": ""})
+
+    if all(l.status != "done" for l in lanes):
+        raise RuntimeError(
+            "no page could be audited. "
+            + "; ".join(f"{l.url}: {l.note}" for l in lanes if l.note)[:300])
+
+    failed = [r for r in results if r.status == "failed"]
+    job.say("audit", f"{len(failed)} finding(s) across {len(results)} check(s) "
+                     f"on {sum(1 for l in lanes if l.status == 'done')} page(s)")
+    if job.pages:
+        job.pages[0]["source"] = job.source
 
     job.findings = [r.to_dict() for r in results]
     job.recordings = {s: r.to_dict() for s, r in audit.recordings.items()}
-    job.axe = {"ran": audit.axe.ran if audit.axe else False,
-               "version": audit.axe.version if audit.axe else "",
-               "violations": audit.axe.violations if audit.axe else []}
-    failed = [r for r in results if r.status == "failed"]
-    job.say("audit", f"{len(failed)} finding(s) across {len(results)} check(s) "
-                     f"on {len(job.pages)} page(s)")
-    if job.pages:
-        job.pages[0]["findings"] = sum(
-            1 for r in results[:len(audit.states)] if r.status == "failed")
-        job.pages[0]["source"] = job.source
+    first_axe = next((l.axe for l in lanes if l.status == "done" and l.axe.get("ran")),
+                     None)
+    job.axe = first_axe or {"ran": False, "version": "", "violations": []}
 
     if not (want_fix and failed):
         job.say("pr", "Nothing to fix." if not failed else "Fix step skipped.")
