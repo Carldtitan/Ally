@@ -244,3 +244,39 @@ first.
 **The three-instance design earned itself.** Three instances per criterion, not
 one, is what caught the patcher stopping at the first occurrence of a
 find/replace pair.
+
+---
+
+## What changed so this cannot happen again
+
+**A recall gate that runs as often as the clean-page test.** The asymmetry was
+the root cause: false positives were visible every day and misses were visible
+almost never. `tests/test_recall_gate.py` replays twenty-four frozen recordings
+through all five checks and scores them against the manifest, failing on any drop
+in recall, any rise in false positives, any finding on the clean page, and any
+target that had to be matched as a string. It runs in about a second, because
+recording is the expensive part and the checks are pure functions of a Recording.
+
+*It was verified against the bug it exists for.* With the scorer reverted to
+string matching it reports **8 of 15** and names all seven misses by region and
+selector. It would have caught the original bug the day it landed.
+
+**Four outcomes at the element level, after axe.** axe returns passes,
+violations, incomplete and inapplicable per rule. Our `not_evaluated` collapsed
+the last two, and from outside both looked like a pass. Every check now returns a
+census where `examined` must equal `failed + passed + undecided`, enforced by the
+type. Two numbers it surfaced on the first run:
+
+- 2.1.1 examines 6 candidates per state and excludes 8 — more skipped than looked
+  at. The exclusions were innocent of the misses, but nobody could have known
+  that from the old output.
+- 2.4.3 with no judge reports `examined 9, passed 1, could not decide about 8`
+  where it used to report one `not_evaluated`. Run the gate with `--no-judge` and
+  it shows `undecided 12` and fails, rather than resembling a pass.
+
+**A crashed recorder raises.** It used to return `state_reached=False`, which is
+indistinguishable from a fixture that did not change. That conflation hid an
+`IndentationError` in the remote script across four runs, each reporting zero
+stops and zero candidates — which reads exactly like a page that tabs nowhere.
+The `reach_note` was carrying the traceback the whole time and the diagnostic
+output was printing only the counts.

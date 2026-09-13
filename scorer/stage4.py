@@ -40,13 +40,25 @@ wb_env.use_certifi_bundle()
 from agent.fixloop import FixLoop  # noqa: E402
 from agent.judge import _client, make_judge  # noqa: E402
 from agent.lessons import Lessons  # noqa: E402
-from agent.recording import Result  # noqa: E402
+from agent.recording import Census, Result  # noqa: E402
 from agent.run import CHECKOUT, REPO, RemoteTree  # noqa: E402
 from agent.session import Session  # noqa: E402
 
 CRITERIA = ["2.1.1", "2.1.2", "2.4.3", "2.4.7", "2.4.11"]
 PAGE_OF = {"2.1.1": "2-1-1", "2.1.2": "2-1-2", "2.4.3": "2-4-3",
            "2.4.7": "2-4-7", "2.4.11": "2-4-11"}
+
+
+def _result_from(f: dict) -> Result:
+    """A Result back from its own dict, census included.
+
+    The census is a nested dataclass, so a flat `Result(**f)` would leave it as a
+    plain dict and `.census.examined` would raise on an attribute that looks like
+    it exists. Rebuilt explicitly instead.
+    """
+    fields = {k: (tuple(v) if isinstance(v, list) else v)
+              for k, v in f.items() if k != "census"}
+    return Result(census=Census(**(f.get("census") or {})), **fields)
 
 
 class SavedAudit:
@@ -64,9 +76,7 @@ class SavedAudit:
         self.run_id = run_id
         self.session = session
         self.judge = judge
-        self.results = [Result(**{k: (tuple(v) if isinstance(v, list) else v)
-                                  for k, v in f.items()})
-                        for f in artifact["findings"]]
+        self.results = [_result_from(f) for f in artifact["findings"]]
 
 
 def clone_fresh(session: Session) -> None:
@@ -82,7 +92,7 @@ def main() -> None:
     ap.add_argument("--sandbox", default=os.environ.get("ALLY_SANDBOX"))
     ap.add_argument("--lessons", choices=["on", "off"], default="on")
     ap.add_argument("--tag", default="s4")
-    ap.add_argument("--baseline", default="baseline5")
+    ap.add_argument("--baseline", default="baseline6")
     args = ap.parse_args()
 
     use_lessons = args.lessons == "on"

@@ -1,0 +1,280 @@
+{
+ "url": "https://broken-app.vercel.app/2-1-2.html",
+ "state": "menu-open",
+ "state_reached": true,
+ "reach_note": "document.getElementById('menubutton1').getAttribut changed from 'false' to 'true'",
+ "truncated": false,
+ "viewport": [
+  1024,
+  740
+ ],
+ "page_height": 1069,
+ "stops": [
+  {
+   "index": 0,
+   "tag": "LI",
+   "role": "menuitem",
+   "name": "Action 1",
+   "x": 130,
+   "y": 324,
+   "w": 76,
+   "h": 60,
+   "selector": "#menu1>li:nth-of-type(1)",
+   "vx": 130,
+   "vy": 324,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": null,
+   "anchors": {
+    "self": [
+     "li",
+     "[role=menuitem]"
+    ],
+    "within": [
+     "ul",
+     "#menu1",
+     "[role=menu]",
+     "div",
+     ".menu-button-actions",
+     ".focus",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 1,
+   "tag": "LI",
+   "role": "menuitem",
+   "name": "Action 1",
+   "x": 130,
+   "y": 324,
+   "w": 76,
+   "h": 60,
+   "selector": "#menu1>li:nth-of-type(1)",
+   "vx": 130,
+   "vy": 324,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.6504576659038902,
+   "anchors": {
+    "self": [
+     "li",
+     "[role=menuitem]"
+    ],
+    "within": [
+     "ul",
+     "#menu1",
+     "[role=menu]",
+     "div",
+     ".menu-button-actions",
+     ".focus",
+     "section",
+     "main"
+    ]
+   }
+  }
+ ],
+ "candidates": [
+  {
+   "selector": "body>main>section:nth-of-type(1)>button",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Add Delivery Address",
+   "x": 124,
+   "y": 175,
+   "w": 143,
+   "h": 21,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(1)",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Add",
+   "x": 0,
+   "y": 0,
+   "w": 0,
+   "h": 0,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".hidden",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(2)",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Cancel",
+   "x": 0,
+   "y": 0,
+   "w": 0,
+   "h": 0,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".hidden",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#menubutton1",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Actions",
+   "x": 124,
+   "y": 285,
+   "w": 79,
+   "h": 30,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button",
+     "#menubutton1"
+    ],
+    "within": [
+     "div",
+     ".menu-button-actions",
+     ".focus",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "body>main>section:nth-of-type(5)>div",
+   "tag": "DIV",
+   "role": "switch",
+   "name": "Notifications \n Off",
+   "x": 126,
+   "y": 978,
+   "w": 252,
+   "h": 43,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "div",
+     "[role=switch]"
+    ],
+    "within": [
+     "section",
+     "main"
+    ]
+   }
+  }
+ ],
+ "excluded": [
+  {
+   "selector": "#menu1>li:nth-of-type(1)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(2)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(3)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(4)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-1",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-2",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-3",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-4",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  }
+ ]
+}

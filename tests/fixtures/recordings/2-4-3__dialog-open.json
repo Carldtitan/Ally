@@ -1,0 +1,509 @@
+{
+ "url": "https://broken-app.vercel.app/2-4-3.html",
+ "state": "dialog-open",
+ "state_reached": true,
+ "reach_note": "!document.getElementById('dialog1').classList.cont changed from False to True",
+ "truncated": false,
+ "viewport": [
+  1024,
+  740
+ ],
+ "page_height": 1113,
+ "stops": [
+  {
+   "index": 0,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Street:",
+   "x": 398,
+   "y": 126,
+   "w": 360,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(1)>div:nth-of-type(1)>label>input",
+   "vx": 398,
+   "vy": 126,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": null,
+   "anchors": {
+    "self": [
+     "input",
+     ".wide_input"
+    ],
+    "within": [
+     "label",
+     "div",
+     ".dialog_form_item",
+     ".dialog_form",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 1,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "City:",
+   "x": 398,
+   "y": 160,
+   "w": 227,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(1)>div:nth-of-type(2)>label>input",
+   "vx": 398,
+   "vy": 160,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.17650984317650983,
+   "anchors": {
+    "self": [
+     "input",
+     ".city_input"
+    ],
+    "within": [
+     "label",
+     "div",
+     ".dialog_form_item",
+     ".dialog_form",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 2,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "State:",
+   "x": 398,
+   "y": 194,
+   "w": 200,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(1)>div:nth-of-type(3)>label>input",
+   "vx": 398,
+   "vy": 194,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.1783033033033033,
+   "anchors": {
+    "self": [
+     "input",
+     ".state_input"
+    ],
+    "within": [
+     "label",
+     "div",
+     ".dialog_form_item",
+     ".dialog_form",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 3,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Zip:",
+   "x": 398,
+   "y": 228,
+   "w": 120,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(1)>div:nth-of-type(4)>label>input",
+   "vx": 398,
+   "vy": 228,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.1877980922098569,
+   "anchors": {
+    "self": [
+     "input",
+     ".zip_input"
+    ],
+    "within": [
+     "label",
+     "div",
+     ".dialog_form_item",
+     ".dialog_form",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 4,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Special instructions:",
+   "x": 398,
+   "y": 286,
+   "w": 360,
+   "h": 21,
+   "selector": "#special_instructions",
+   "vx": 398,
+   "vy": 286,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.17143473260494538,
+   "anchors": {
+    "self": [
+     "input",
+     "#special_instructions",
+     ".wide_input"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_item",
+     ".dialog_form",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 5,
+   "tag": "BUTTON",
+   "role": "button",
+   "name": "Add",
+   "x": 297,
+   "y": 377,
+   "w": 40,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(1)",
+   "vx": 297,
+   "vy": 377,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.21428571428571427,
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 6,
+   "tag": "BUTTON",
+   "role": "button",
+   "name": "Cancel",
+   "x": 239,
+   "y": 377,
+   "w": 58,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(2)",
+   "vx": 239,
+   "vy": 377,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.18151935719503287,
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 7,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Street:",
+   "x": 398,
+   "y": 126,
+   "w": 360,
+   "h": 21,
+   "selector": "#dialog1>div:nth-of-type(1)>div:nth-of-type(1)>label>input",
+   "vx": 398,
+   "vy": 126,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.17143473260494538,
+   "anchors": {
+    "self": [
+     "input",
+     ".wide_input"
+    ],
+    "within": [
+     "label",
+     "div",
+     ".dialog_form_item",
+     ".dialog_form",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  }
+ ],
+ "candidates": [
+  {
+   "selector": "body>main>section:nth-of-type(1)>button",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Add Delivery Address",
+   "x": 124,
+   "y": 175,
+   "w": 143,
+   "h": 21,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(1)",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Add",
+   "x": 297,
+   "y": 377,
+   "w": 40,
+   "h": 21,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(2)",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Cancel",
+   "x": 239,
+   "y": 377,
+   "w": 58,
+   "h": 21,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".default_dialog",
+     ".dialog-backdrop",
+     ".active",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#menubutton1",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Actions",
+   "x": 124,
+   "y": 285,
+   "w": 79,
+   "h": 30,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button",
+     "#menubutton1"
+    ],
+    "within": [
+     "div",
+     ".menu-button-actions",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "body>main>section:nth-of-type(5)>div",
+   "tag": "DIV",
+   "role": "switch",
+   "name": "Notifications \n Off",
+   "x": 126,
+   "y": 1022,
+   "w": 252,
+   "h": 43,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "div",
+     "[role=switch]"
+    ],
+    "within": [
+     "section",
+     "main"
+    ]
+   }
+  }
+ ],
+ "excluded": [
+  {
+   "selector": "#menu1>li:nth-of-type(1)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(2)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(3)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(4)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-1",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-2",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-3",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-4",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  }
+ ]
+}

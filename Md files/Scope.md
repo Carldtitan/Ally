@@ -237,6 +237,57 @@ and shows every false positive. The fifteen defects ran rarely, so a miss was
 almost never seen. That asymmetry is what let the scoreboard be wrong for two
 days, and it is why recall needs a gate that runs as often as rule 1 does.
 
+**The test that enforces that** is `tests/test_recall_gate.py`. Twenty-four
+recordings frozen under `tests/fixtures/recordings/`, replayed through all five
+checks and scored against the manifest, with a recorded floor in
+`recall_floor.json`. It fails on any drop in recall, any rise in false positives,
+any finding on the clean page, and any target that had to be matched as a string.
+Recording is the expensive part and the checks are pure functions of a Recording,
+so it runs in about a second with no sandbox, which is what makes it runnable on
+every change to a check.
+
+*Verified against the bug it exists for: with the scorer reverted to string
+matching it reports 8 of 15 and names all seven misses. It would have caught the
+original bug the day it landed.*
+
+**What it cannot catch:** a recorder regression. The corpus is fixed, so a
+recorder that stops finding stops still scores 15/15 here. That needs a periodic
+full `scorer/score.py` run and the determinism check.
+
+---
+
+## How a result is reported
+
+Four outcomes at the element level, not one verdict per criterion, modelled on
+axe. axe returns four lists per rule — passes, violations, incomplete,
+inapplicable. `incomplete` means it looked and could not decide; `inapplicable`
+means there was no matching content to look at. Our `not_evaluated` collapsed
+those two into one, and from outside both were indistinguishable from a pass.
+
+Every check now returns a `Census`: `examined`, `failed`, `passed`, `undecided`,
+`inapplicable`, plus `excluded` with its reasons. `examined` must equal
+`failed + passed + undecided` and the type refuses to construct otherwise, so the
+counts are a measurement rather than decoration.
+
+So "found 2 of 3" becomes "examined 40 elements, failed 2, passed 37, could not
+decide about 1", and a miss stops being invisible. Two things this exposed
+immediately:
+
+- **2.1.1 examines 6 candidates per state and excludes 8.** More elements are
+  skipped than looked at. The exclusions turned out to be innocent of the misses
+  they were suspected of, but that ratio was invisible before and is the kind of
+  thing that should have to be argued for.
+- **2.4.3 with no judge reports `examined 9, passed 1, could not decide about 8`**
+  where it used to report a single `not_evaluated`. The gate run with
+  `--no-judge` shows `undecided 12` across the page and fails, instead of looking
+  like a pass.
+
+The element population per criterion: 2.1.1 the candidate list; 2.1.2 each Tab
+press; 2.4.3 the positioned stops, with stops dropped by the lap filter counted
+inapplicable; 2.4.7 the stops carrying a frame pair, with the band between the
+two thresholds counted undecided when no judge resolves it; 2.4.11 the stops with
+a box on screen.
+
 ---
 
 ## The benchmark

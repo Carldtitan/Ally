@@ -1,0 +1,469 @@
+{
+ "url": "https://broken-app.vercel.app/2-1-1.html",
+ "state": "loaded",
+ "state_reached": true,
+ "reach_note": "document.readyState is 'complete'",
+ "truncated": false,
+ "viewport": [
+  1024,
+  740
+ ],
+ "page_height": 1077,
+ "stops": [
+  {
+   "index": 0,
+   "tag": "BODY",
+   "role": null,
+   "name": null,
+   "x": 0,
+   "y": 0,
+   "w": 1016,
+   "h": 1077,
+   "selector": "body",
+   "vx": 0,
+   "vy": 0,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": null,
+   "anchors": {
+    "self": [
+     "body"
+    ],
+    "within": []
+   }
+  },
+  {
+   "index": 1,
+   "tag": "BUTTON",
+   "role": "button",
+   "name": "Actions ",
+   "x": 124,
+   "y": 289,
+   "w": 79,
+   "h": 30,
+   "selector": "#menubutton1",
+   "vx": 124,
+   "vy": 289,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.4043478260869565,
+   "anchors": {
+    "self": [
+     "button",
+     "#menubutton1"
+    ],
+    "within": [
+     "div",
+     ".menu-button-actions",
+     ".focus",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 2,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Last Action: ",
+   "x": 223,
+   "y": 337,
+   "w": 185,
+   "h": 21,
+   "selector": "#action_output",
+   "vx": 223,
+   "vy": 337,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.6124781497915827,
+   "anchors": {
+    "self": [
+     "input",
+     "#action_output",
+     ".action"
+    ],
+    "within": [
+     "label",
+     "p",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 3,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Full name:",
+   "x": 124,
+   "y": 473,
+   "w": 185,
+   "h": 21,
+   "selector": "#full_name",
+   "vx": 124,
+   "vy": 473,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.17950786607503025,
+   "anchors": {
+    "self": [
+     "input",
+     "#full_name"
+    ],
+    "within": [
+     "div",
+     ".form_item",
+     "form",
+     "#signup",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 4,
+   "tag": "INPUT",
+   "role": "textbox",
+   "name": "Email (required):",
+   "x": 124,
+   "y": 533,
+   "w": 185,
+   "h": 21,
+   "selector": "#email",
+   "vx": 124,
+   "vy": 533,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.17950786607503025,
+   "anchors": {
+    "self": [
+     "input",
+     "#email"
+    ],
+    "within": [
+     "div",
+     "#email_item",
+     ".form_item",
+     "form",
+     "#signup",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 5,
+   "tag": "BUTTON",
+   "role": "tab",
+   "name": "Maria Ahlefeldt",
+   "x": 124,
+   "y": 685,
+   "w": 119,
+   "h": 41,
+   "selector": "#tab-1",
+   "vx": 124,
+   "vy": 276,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.06601689408706952,
+   "anchors": {
+    "self": [
+     "button",
+     "#tab-1",
+     "[role=tab]"
+    ],
+    "within": [
+     "div",
+     "[role=tablist]",
+     ".automatic",
+     ".tabs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 6,
+   "tag": "DIV",
+   "role": "tabpanel",
+   "name": "Maria Ahlefeldt",
+   "x": 124,
+   "y": 724,
+   "w": 782,
+   "h": 174,
+   "selector": "#tabpanel-1",
+   "vx": 124,
+   "vy": 315,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": 0.02940904893813481,
+   "anchors": {
+    "self": [
+     "div",
+     "#tabpanel-1",
+     "[role=tabpanel]"
+    ],
+    "within": [
+     "div",
+     ".tabs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "index": 7,
+   "tag": "BODY",
+   "role": null,
+   "name": null,
+   "x": 0,
+   "y": 0,
+   "w": 1016,
+   "h": 1077,
+   "selector": "body",
+   "vx": 0,
+   "vy": -409,
+   "screenshot": null,
+   "obscured_by": null,
+   "focus_delta": null,
+   "anchors": {
+    "self": [
+     "body"
+    ],
+    "within": []
+   }
+  }
+ ],
+ "candidates": [
+  {
+   "selector": "#ally-d1",
+   "tag": "DIV",
+   "role": null,
+   "name": "Add Delivery Address",
+   "x": 124,
+   "y": 173,
+   "w": 187,
+   "h": 28,
+   "focusable": false,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "div",
+     "#ally-d1",
+     ".fake-btn"
+    ],
+    "within": [
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(1)",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Add",
+   "x": 0,
+   "y": 409,
+   "w": 0,
+   "h": 0,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".hidden",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#dialog1>div:nth-of-type(2)>button:nth-of-type(2)",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Cancel",
+   "x": 0,
+   "y": 409,
+   "w": 0,
+   "h": 0,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button"
+    ],
+    "within": [
+     "div",
+     ".dialog_form_actions",
+     "#dialog1",
+     "[role=dialog]",
+     ".hidden",
+     "#dialog_layer",
+     ".dialogs",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#menubutton1",
+   "tag": "BUTTON",
+   "role": null,
+   "name": "Actions",
+   "x": 124,
+   "y": 289,
+   "w": 79,
+   "h": 30,
+   "focusable": true,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "button",
+     "#menubutton1"
+    ],
+    "within": [
+     "div",
+     ".menu-button-actions",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "#ally-d2",
+   "tag": "DIV",
+   "role": null,
+   "name": "Submit",
+   "x": 124,
+   "y": 567,
+   "w": 73,
+   "h": 28,
+   "focusable": false,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "div",
+     "#ally-d2",
+     ".fake-btn"
+    ],
+    "within": [
+     "div",
+     ".form_item",
+     "form",
+     "#signup",
+     "section",
+     "main"
+    ]
+   }
+  },
+  {
+   "selector": "body>main>section:nth-of-type(5)>div",
+   "tag": "DIV",
+   "role": "switch",
+   "name": "Notifications \n Off",
+   "x": 126,
+   "y": 986,
+   "w": 252,
+   "h": 43,
+   "focusable": false,
+   "sources": [
+    "listeners"
+   ],
+   "anchors": {
+    "self": [
+     "div",
+     "[role=switch]"
+    ],
+    "within": [
+     "section",
+     "main"
+    ]
+   }
+  }
+ ],
+ "excluded": [
+  {
+   "selector": "#menu1>li:nth-of-type(1)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(2)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(3)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#menu1>li:nth-of-type(4)",
+   "tag": "LI",
+   "role": "menuitem",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-1",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-2",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-3",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  },
+  {
+   "selector": "#tab-4",
+   "tag": "BUTTON",
+   "role": "tab",
+   "rule": "managed",
+   "reason": "roving tabindex or a role a composite widget manages",
+   "source": "listeners"
+  }
+ ]
+}

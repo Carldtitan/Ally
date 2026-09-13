@@ -53,6 +53,18 @@ def main() -> int:
                          "not_evaluated rather than being judged")
     args = ap.parse_args()
 
+    # Rule 9: a run that is not traced is not on the record, and Weave is a
+    # judging criterion. This test runs more often than anything else, so its
+    # traces are the densest evidence that the checks were exercised.
+    try:
+        import weave
+
+        cfg = wb_env.bootstrap()
+        weave.init(cfg["ref"])
+    except Exception as exc:
+        print(f"!! weave.init failed, this run will NOT be on the record: "
+              f"{type(exc).__name__}: {str(exc)[:80]}")
+
     session = Session(args.sandbox)
     states = [s.strip() for s in args.states.split(",") if s.strip()]
 

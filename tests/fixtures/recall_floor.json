@@ -1,0 +1,17 @@
+{
+  "recall": {
+    "2.1.1": 3,
+    "2.1.2": 3,
+    "2.4.3": 3,
+    "2.4.7": 3,
+    "2.4.11": 3
+  },
+  "max_false_positives": {
+    "2.1.1": 0,
+    "2.1.2": 0,
+    "2.4.3": 1,
+    "2.4.7": 0,
+    "2.4.11": 0
+  },
+  "note": "Written by --freeze. Lowering a number here is a deliberate act and belongs in the commit message with its reason."
+}

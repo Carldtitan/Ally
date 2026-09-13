@@ -31,6 +31,76 @@ Status = Literal["passed", "failed", "not_evaluated"]
 
 
 @dataclass(frozen=True)
+class Census:
+    """How many elements each of the four outcomes happened to.
+
+    Modelled on axe, which returns four lists per rule -- passes, violations,
+    incomplete, inapplicable -- rather than one verdict. `incomplete` means it
+    looked and could not decide; `inapplicable` means there was no matching
+    content to look at. Our `not_evaluated` collapsed those two into one, and
+    from outside both were indistinguishable from a pass.
+
+    This is what makes a miss visible. "found 2 of 3" says nothing about whether
+    the third was examined and cleared or never looked at; "examined 40, failed
+    2, passed 37, could not decide about 1" does.
+
+    `examined` is the sum of failed, passed and undecided, and the type enforces
+    that. `inapplicable` and `excluded` sit outside it, because neither was
+    examined: the first had nothing to check, the second was skipped on purpose.
+    """
+
+    examined: int = 0
+    failed: int = 0
+    passed: int = 0
+    #: Looked at and could not decide. axe calls this incomplete.
+    undecided: int = 0
+    #: No matching content on the element to check.
+    inapplicable: int = 0
+    #: Deliberately skipped. A silent exclusion is a miss nobody can see, so the
+    #: reasons travel with the count.
+    excluded: int = 0
+    exclusion_note: str = ""
+
+    def __post_init__(self) -> None:
+        total = self.failed + self.passed + self.undecided
+        if self.examined != total:
+            raise ValueError(
+                f"census examined={self.examined} but failed+passed+undecided="
+                f"{total}. Every examined element lands in exactly one of the "
+                "three, or the counts are decoration rather than a measurement."
+            )
+
+    @property
+    def line(self) -> str:
+        """The counts as one readable line."""
+        bits = [f"examined {self.examined}", f"failed {self.failed}",
+                f"passed {self.passed}"]
+        if self.undecided:
+            bits.append(f"could not decide about {self.undecided}")
+        if self.inapplicable:
+            bits.append(f"nothing to check on {self.inapplicable}")
+        if self.excluded:
+            bits.append(f"excluded {self.excluded}"
+                        + (f" ({self.exclusion_note})" if self.exclusion_note else ""))
+        return ", ".join(bits)
+
+
+def exclusion_summary(rec) -> tuple[int, str]:
+    """The recording's exclusions as a count and a reason breakdown."""
+    ex = getattr(rec, "excluded", None) or []
+    if not ex:
+        return 0, ""
+    counts: dict[str, int] = {}
+    for e in ex:
+        label = {"managed": "roving tabindex",
+                 "inside-control": "inside a larger control",
+                 "delegating-container": "delegating container"}.get(e.rule, e.rule)
+        counts[label] = counts.get(label, 0) + 1
+    note = ", ".join(f"{n} {label}" for label, n in sorted(counts.items()))
+    return len(ex), note
+
+
+@dataclass(frozen=True)
 class Result:
     """One criterion's verdict on one state.
 
@@ -49,6 +119,8 @@ class Result:
     summary: str = ""
     #: Which planted-defect-shaped thing was found, for the scorer to match on.
     targets: tuple[str, ...] = ()
+    #: Element-level outcome counts. See Census.
+    census: Census = field(default_factory=Census)
 
     def __post_init__(self) -> None:
         if self.status == "not_evaluated" and not self.reason:
@@ -69,19 +141,24 @@ class Result:
         return asdict(self)
 
 
-def passed(criterion: str, state: str, summary: str = "") -> Result:
-    return Result(criterion=criterion, state=state, status="passed", summary=summary)
+def passed(criterion: str, state: str, summary: str = "",
+           census: Census | None = None) -> Result:
+    return Result(criterion=criterion, state=state, status="passed", summary=summary,
+                  census=census or Census())
 
 
 def failed(criterion: str, state: str, evidence_refs: tuple[str, ...] | list[str],
-           summary: str, targets: tuple[str, ...] | list[str] = ()) -> Result:
+           summary: str, targets: tuple[str, ...] | list[str] = (),
+           census: Census | None = None) -> Result:
     return Result(criterion=criterion, state=state, status="failed",
                   evidence_refs=tuple(evidence_refs), summary=summary,
-                  targets=tuple(targets))
+                  targets=tuple(targets), census=census or Census())
 
 
-def not_evaluated(criterion: str, state: str, reason: str) -> Result:
-    return Result(criterion=criterion, state=state, status="not_evaluated", reason=reason)
+def not_evaluated(criterion: str, state: str, reason: str,
+                  census: Census | None = None) -> Result:
+    return Result(criterion=criterion, state=state, status="not_evaluated",
+                  reason=reason, census=census or Census())
 
 
 # --------------------------------------------------------------------------
