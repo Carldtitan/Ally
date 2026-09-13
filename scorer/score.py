@@ -53,12 +53,43 @@ def load_manifest() -> dict:
     return planted
 
 
-def matches(target: str, defect: dict) -> bool:
-    """Does a reported target name the element this defect was planted on?
+def manifest_token(selector: str) -> str:
+    """The manifest's selector as one identity token, in anch()'s vocabulary.
 
-    Selector equality is too strict: the recorder derives its own selector from
-    the live DOM and the manifest carries the one the breaker used. Matching on
-    the identifying part is what makes them comparable.
+    `#ally-d1` and `.city_input` already are tokens. `[role="switch"]` becomes
+    `[role=switch]`: quoting and case are ours to choose, so they are normalised
+    on both sides rather than compared as written.
+    """
+    t = (selector or "").strip()
+    if t.startswith("[") and "=" in t:
+        key, _, value = t.strip("[]").partition("=")
+        return f"[{key.strip().lower()}={value.strip().strip(chr(34) + chr(39)).lower()}]"
+    return t
+
+
+def anchor_index(run: dict) -> dict[str, dict]:
+    """selector -> what that element is and what it sits inside.
+
+    Read from the recordings the audit saved, so matching uses DOM facts
+    collected at the time rather than inferences about a string afterwards.
+    """
+    out: dict[str, dict] = {}
+    for rec in (run.get("recordings") or {}).values():
+        for item in list(rec.get("stops") or ()) + list(rec.get("candidates") or ()):
+            a = item.get("anchors")
+            if a and item.get("selector"):
+                out.setdefault(item["selector"], a)
+    return out
+
+
+def legacy_matches(target: str, defect: dict) -> bool:
+    """String matching, kept only for artifacts recorded before anchors.
+
+    This is the bug. `sel()` prefers an id and otherwise emits an ancestor path,
+    so it never emits a class or an attribute selector, and no amount of slicing
+    makes `[role="switch"]` match `body>main>section:nth-of-type(5)>div`. Six of
+    the fifteen defects were detected correctly and scored as missed for two
+    days. Its use is counted and reported, never silent.
     """
     sel = defect["selector"]
     t = (target or "").strip()
@@ -66,21 +97,45 @@ def matches(target: str, defect: dict) -> bool:
         return False
     if t == sel:
         return True
-    # an id anywhere in either
     if sel.startswith("#") and sel in t:
         return True
-    # attribute selectors such as [role="switch"]
     if sel.startswith("[") and sel.strip("[]").split("=")[0] in t:
         return True
-    # bare tag/class fragments
     key = sel.lstrip(".#[").split("=")[0].strip('"]')
     return bool(key) and key in t
+
+
+#: Incremented whenever an artifact has no anchors for a reported target, so a
+#: score computed the old way cannot be mistaken for one computed the new way.
+LEGACY_USES: list[str] = []
+
+
+def matches(target: str, defect: dict, anchors: dict[str, dict] | None = None) -> bool:
+    """Does a reported target name the element this defect was planted on?
+
+    Element identity, not string similarity. The manifest names an element by
+    id, class or role; the recorder addresses it by id or by path. Those are
+    different questions about the same element, so the comparison is made
+    against what the element actually is.
+
+    An ancestor counts. 2.4.3 is planted on a container -- reversing a flex row
+    -- and manifests on the controls inside it, which is what the check reports
+    and what a keyboard user meets. `#email` inside `#email_item` is the defect
+    being observed where it is observable, not a near miss.
+    """
+    a = (anchors or {}).get(target)
+    if a is None:
+        LEGACY_USES.append(target)
+        return legacy_matches(target, defect)
+    tok = manifest_token(defect["selector"])
+    return tok in (a.get("self") or ()) or tok in (a.get("within") or ())
 
 
 def score_run(run: dict, planted: dict) -> dict:
     """Per-criterion recall, precision and not_evaluated for one page."""
     out = {}
     findings = run.get("findings", [])
+    anchors = anchor_index(run)
     for crit in CRITERIA:
         mine = [f for f in findings if f["criterion"] == crit]
         failed = [f for f in mine if f["status"] == "failed"]
@@ -92,8 +147,8 @@ def score_run(run: dict, planted: dict) -> dict:
         reported = list(dict.fromkeys(reported))
 
         defects = planted.get(crit, [])
-        found = [d for d in defects if any(matches(t, d) for t in reported)]
-        true_pos = [t for t in reported if any(matches(t, d) for d in defects)]
+        found = [d for d in defects if any(matches(t, d, anchors) for t in reported)]
+        true_pos = [t for t in reported if any(matches(t, d, anchors) for d in defects)]
         false_pos = [t for t in reported if t not in true_pos]
 
         out[crit] = {
@@ -233,6 +288,30 @@ def main() -> None:
     if clean_run is None:
         print("\nThe clean page was not audited, so the false-positive column is "
               "unmeasured\nrather than zero.")
+
+    # ---- every false positive, named ---------------------------------
+    # A wrong element cited inside an otherwise correct finding is a precision
+    # defect. Reporting only the ratio lets it disappear into a passing row,
+    # which is how the judge citing an unrelated stop stayed unexamined while
+    # 2.4.3 read 0/3 for an entirely different reason.
+    fps = [(c, t) for c, v in scored.items() for t in v["fp_targets"]]
+    print(f"\nfalse positives on the broken pages: {len(fps)}")
+    for crit, target in fps:
+        print(f"  {crit:8s} {target}")
+    if not fps:
+        print("  none")
+
+    if LEGACY_USES:
+        # Rule 7: a skip is reported, never silent. A score where some targets
+        # were matched as strings and others by element identity is two
+        # measurements added together and must not be read as one.
+        uniq = sorted(set(LEGACY_USES))
+        print(f"\n!! {len(uniq)} target(s) had no anchors, so string matching "
+              f"was used for them.")
+        print("!! Those rows were computed the old way. Re-audit to score them "
+              "on identity:")
+        for t in uniq[:8]:
+            print(f"!!   {t}")
 
     out = ROOT / "artifacts" / f"{args.tag}-score.json"
     out.write_text(json.dumps({"tag": args.tag, "states": states,

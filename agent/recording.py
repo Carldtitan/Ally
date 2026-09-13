@@ -118,10 +118,21 @@ class Stop:
     obscured_by: str | None = None
     #: Pixel difference against the previous frame, cropped to this element.
     focus_delta: float | None = None
+    #: What this element is, and what it sits inside. See browser.anch.
+    #: {"self": ["input", "#email", ".city_input"], "within": ["#email_item"]}
+    anchors: dict = field(default_factory=dict)
 
     @property
-    def ref(self) -> str:
-        """The citation form. `evidence_refs` entries look exactly like this."""
+    def cite(self) -> str:
+        """The citation form. `evidence_refs` entries look exactly like this.
+
+        NOT named `ref`. Weave's `get_ref(obj)` is `getattr(obj, "ref", None)`,
+        so a `ref` property returning a string makes Weave treat this object as
+        already-saved and then call `ref.project` on a str. Every trace holding
+        a Recording raised AttributeError inside _save_nested_objects and was
+        dropped, which is why no stage before 2026-09-12 has a trace record.
+        The collision is silent: weave.init succeeds and the ops still run.
+        """
         return f"stop {self.index}"
 
 
@@ -140,10 +151,33 @@ class Candidate:
     focusable: bool
     #: "tree", "dom-query" or "listeners"
     sources: tuple[str, ...] = ()
+    #: See Stop.anchors.
+    anchors: dict = field(default_factory=dict)
 
     @property
-    def ref(self) -> str:
+    def cite(self) -> str:
+        """See Stop.cite for why this is not called `ref`."""
         return f"candidate {self.selector}"
+
+
+@dataclass
+class Exclusion:
+    """An element the candidate scan deliberately skipped, and why.
+
+    A silent exclusion is a miss nobody can see. Both of these were added to
+    cut 2.1.1 false positives on the control page, and the cost was never
+    reported anywhere: the number of candidates simply went down. Recording
+    them means an exclusion has to be argued for rather than forgotten.
+    """
+
+    selector: str
+    tag: str
+    role: str | None
+    #: "managed" (roving tabindex inside a composite widget), "inside-control"
+    #: (part of a larger control), or "delegating-container".
+    rule: str
+    reason: str
+    source: str = ""
 
 
 @dataclass
@@ -159,6 +193,8 @@ class Recording:
     reach_note: str
     stops: list[Stop] = field(default_factory=list)
     candidates: list[Candidate] = field(default_factory=list)
+    #: Every element the scan skipped, with the rule that skipped it.
+    excluded: list[Exclusion] = field(default_factory=list)
     #: True when the Tab loop hit its cap instead of wrapping.
     truncated: bool = False
     viewport: tuple[int, int] = (1024, 740)
@@ -204,4 +240,5 @@ class Recording:
             "page_height": self.page_height,
             "stops": [asdict(s) for s in self.stops],
             "candidates": [asdict(c) for c in self.candidates],
+            "excluded": [asdict(e) for e in self.excluded],
         }

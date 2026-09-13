@@ -80,7 +80,7 @@ def check_keyboard(rec: Recording) -> Result:
 
     return failed(
         "2.1.1", rec.state,
-        evidence_refs=[c.ref for c in missed],
+        evidence_refs=[c.cite for c in missed],
         targets=[c.selector for c in missed],
         summary=(f"{len(missed)} interactive element"
                  f"{'' if len(missed) == 1 else 's'} carry a click handler but are "
@@ -118,7 +118,7 @@ def check_no_trap(rec: Recording) -> Result:
         if rec.truncated:
             return failed(
                 "2.1.2", rec.state,
-                evidence_refs=[rec.stops[-1].ref],
+                evidence_refs=[rec.stops[-1].cite],
                 targets=[rec.stops[-1].selector],
                 summary=(f"focus never left the page: {len(rec.stops)} Tab presses without "
                          "returning to the document, so the sequence was cut off"),
@@ -128,7 +128,7 @@ def check_no_trap(rec: Recording) -> Result:
                       "and left the page at the end")
 
     stuck = {rec.stops[j].selector for _, j in repeats}
-    refs = sorted({rec.stops[i].ref for pair in repeats for i in pair},
+    refs = sorted({rec.stops[i].cite for pair in repeats for i in pair},
                   key=lambda r: int(r.split()[1]))
     return failed(
         "2.1.2", rec.state, evidence_refs=refs, targets=sorted(stuck),
@@ -161,7 +161,7 @@ def check_not_obscured(rec: Recording) -> Result:
 
     return failed(
         "2.4.11", rec.state,
-        evidence_refs=[s.ref for s in hidden],
+        evidence_refs=[s.cite for s in hidden],
         targets=[s.selector for s in hidden],
         summary=(f"{len(hidden)} focused element{'' if len(hidden) == 1 else 's'} "
                  "had something drawn over " + ("it" if len(hidden) == 1 else "them") + ": "
@@ -224,7 +224,7 @@ def check_focus_visible(rec: Recording, borderline_judge=None) -> Result:
     invisible.sort(key=lambda s: s.index)
     return failed(
         "2.4.7", rec.state,
-        evidence_refs=[s.ref for s in invisible],
+        evidence_refs=[s.cite for s in invisible],
         targets=[s.selector for s in invisible],
         summary=(f"{len(invisible)} control{'' if len(invisible) == 1 else 's'} showed "
                  "no visible change when focus landed: "

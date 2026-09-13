@@ -141,13 +141,28 @@ ORDER = [
         css=".dialog_form_actions { display: flex; flex-direction: row-reverse; "
             "justify-content: flex-end; }",
     ),
+    # The tablist version of this defect was unobservable, and no checker could
+    # ever have found it. The tabs use a roving tabindex, so exactly one of the
+    # four is in the Tab sequence; reversing their row leaves that single stop's
+    # rank unchanged. Measured on the deployed page: tab order [1..9], reading
+    # order [1,2,3,5,4,6,7,8,9] -- position 7 is #tab-1 in both. The whole
+    # defect produced no difference to detect.
+    #
+    # A positive tabindex instead, which is WCAG failure F44 and the way this
+    # criterion is actually broken in the wild. It cannot be unobservable: the
+    # switch is painted at the page foot and reached first, because positive
+    # tabindex values are visited before every tabindex=0 element on the page.
+    # Geometry is untouched, so the deviation is in the tab order alone.
     Defect(
-        criterion="2.4.3", instance=3, region="composers tablist",
-        state="loaded", selector='[role="tablist"]',
-        expect="the four tabs are painted right to left while Tab reaches them "
-               "left to right",
-        css='[role="tablist"] { display: flex; flex-direction: row-reverse; '
-            "justify-content: flex-end; }",
+        criterion="2.4.3", instance=3, region="preferences, page foot",
+        state="loaded", selector='[role="switch"]',
+        expect="the switch carries tabindex=1, so a keyboard user entering the "
+               "page lands on the last control on it before any of the ones "
+               "above",
+        replacements=((
+            '<div role="switch" aria-checked="false" tabindex="0">',
+            '<div role="switch" aria-checked="false" tabindex="1">',
+        ),),
     ),
 ]
 

@@ -130,7 +130,7 @@ The other four defects all live in the loaded state.
 
 ## Verification rules
 
-Seven rules, each from a bug found while building this. Every one of them produced a
+Ten rules, each from a bug found while building this. Every one of them produced a
 clean-looking wrong answer, which is the same category as the nine false passes
 in the AccessiFix retrospective: not a crash, not an error, a confident result
 that was not true.
@@ -186,9 +186,56 @@ were, and defeated by an optimisation the day after. With the judge running,
 the control page does produce findings: on the clean dialog 2.4.3 reports two
 address inputs as out of order, two wrong out of six reported.*
 
+**8. The scoreboard is a program too, and it needs its own verification.** A
+number that disagrees with the evidence is a bug in one of them, and the
+measuring side is the one nobody tests.
+*Bug: the manifest named elements by class and role, the recorder addressed them
+by id or by DOM path, and the scorer compared the two as strings. Six of the
+fifteen defects were detected correctly and scored as missed. The scoreboard read
+8 of 15 for two days while the checks were finding 14. Measured by turning the
+suspected cause off: with the 2.1.1 exclusions disabled the switch and the
+tablist did not "come back", because they had never been absent — they were in
+the findings all along, under selectors the manifest could not match. Matching is
+now on element identity collected from the DOM, with an ancestor counting as a
+match, because 2.4.3 is planted on a container and manifests on the controls
+inside it.*
+
+**9. A trace that does not arrive is a failure, not a detail.** Weave is a
+judging criterion, so "the checks ran and were correct" is not the same claim as
+"the run is on the record".
+*Bug: `Stop.ref` and `Candidate.ref` returned citation strings for rule 5.2.
+Weave decides whether an object is already saved with
+`get_ref(obj) = getattr(obj, "ref", None)`, so it took `"stop 3"` for an
+ObjectRef and called `ref.project` on a str. Every trace holding a Recording
+raised inside `_save_nested_objects` and was dropped. `weave.init` succeeded, the
+ops ran, the results were right, and no stage before 2026-09-12 has a trace
+record. The only visible sign was one warning line, which a log filter was
+hiding. The property is now `cite`.*
+
+**10. Every exclusion is counted and reported with its reason.** A silent
+exclusion is a miss nobody can see.
+*Bug: two exclusions went in to cut 2.1.1 false positives and a third filtered
+elements the scan had already accepted, and none of the three was reported
+anywhere — the candidate count simply went down. They were suspected of hiding
+the switch and the tablist and they turned out to be innocent, but that could
+only be established by measuring, and nothing in the output made it measurable.
+The recorder now emits every skipped element with the rule that skipped it, and
+`no_exclusions` runs the scan both ways so the cost of an exclusion is a number
+rather than an argument.*
+
 **The test that enforces rule 1** is `tests/test_clean_page.py`. It runs every
 check against the clean page and fails on any finding. That one test would have
 caught the switch defect, the crop bug and the threshold.
+
+**The test that enforces rule 9** is `tests/test_weave_trace.py`. It runs real
+checks under a real client, flushes, then asks the server whether the calls are
+there with their inputs intact. Nothing else could have caught it: the checks
+return the same answers whether or not the trace saves.
+
+**Why rule 1 did not catch the scoring bug.** The clean-page test runs constantly
+and shows every false positive. The fifteen defects ran rarely, so a miss was
+almost never seen. That asymmetry is what let the scoreboard be wrong for two
+days, and it is why recall needs a gate that runs as often as rule 1 does.
 
 ---
 

@@ -93,8 +93,10 @@ def openai_client():
     from openai import OpenAI
 
     cfg = bootstrap()
+    # openai 3.x no longer accepts project= as 1.x did; the header is the
+    # documented fallback and attributes usage to the team either way.
     return OpenAI(
         base_url="https://api.inference.wandb.ai/v1",
         api_key=cfg["api_key"],
-        project=cfg["ref"],
+        default_headers={"OpenAI-Project": cfg["ref"]},
     )

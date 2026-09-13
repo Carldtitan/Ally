@@ -125,12 +125,17 @@
     {
       "criterion": "2.4.3",
       "instance": 3,
-      "region": "composers tablist",
+      "region": "preferences, page foot",
       "state": "loaded",
-      "selector": "[role=\"tablist\"]",
-      "expect": "the four tabs are painted right to left while Tab reaches them left to right",
-      "replacements": [],
-      "css": "[role=\"tablist\"] { display: flex; flex-direction: row-reverse; justify-content: flex-end; }",
+      "selector": "[role=\"switch\"]",
+      "expect": "the switch carries tabindex=1, so a keyboard user entering the page lands on the last control on it before any of the ones above",
+      "replacements": [
+        [
+          "<div role=\"switch\" aria-checked=\"false\" tabindex=\"0\">",
+          "<div role=\"switch\" aria-checked=\"false\" tabindex=\"1\">"
+        ]
+      ],
+      "css": "",
       "js": "",
       "html": "",
       "page": "2-4-3.html"

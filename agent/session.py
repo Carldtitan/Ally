@@ -18,7 +18,7 @@ import base64
 
 from ally import storage
 from .browser import CHROME_FLAGS, STATES, build_runner
-from .recording import Candidate, Recording, Stop
+from .recording import Candidate, Exclusion, Recording, Stop
 
 
 class Session:
@@ -114,21 +114,49 @@ class Session:
 
     # -- recording --------------------------------------------------------
 
+    def restart_browser(self) -> None:
+        """A pristine Chromium. Called before every recording.
+
+        Determinism is not optional for a benchmark, and the browser carries
+        state across navigations that changes what Tab reaches: the sequential
+        focus navigation starting point, scroll position, and whatever the
+        previous page's scripts left behind. Three recordings of the same page
+        in one browser gave 11, 6 and 6 stops, with the second and third
+        identical to each other -- the first run left something the rest
+        inherited.
+
+        Five seconds per state buys a recording that is the same every time,
+        and a recall number that moves only when a check changes.
+        """
+        self.sb.process.exec(
+            f"pkill -f chromium; sleep 1; DISPLAY=:0 nohup chromium {CHROME_FLAGS} "
+            "about:blank > /tmp/chromium.log 2>&1 & echo ok", timeout=120)
+        time.sleep(3.5)
+
     def record(self, url: str, state: str, run_id: str,
-               max_tabs: int = 40) -> Recording:
+               max_tabs: int = 40, pair_capture: bool = True,
+               shots: bool = True, no_exclusions: bool = False) -> Recording:
         """Drive one state and return its Recording."""
         if state not in STATES:
             raise ValueError(f"unknown state {state!r}; known: {sorted(STATES)}")
         self.start_browser()
+        self.restart_browser()
 
-        self.sb.fs.upload_file(build_runner(url, state, max_tabs).encode(),
+        self.sb.fs.upload_file(build_runner(url, state, max_tabs, pair_capture, shots,
+                                            no_exclusions).encode(),
                                "/tmp/ally_record.py")
         res = self.exec("cd /tmp && python3 ally_record.py 2>&1 | tail -4", timeout=600)
         out = (res.result or "").strip()
         line = next((l for l in out.splitlines() if l.startswith("RESULT")), None)
         if not line:
-            return Recording(url=url, state=state, state_reached=False,
-                             reach_note=f"the recorder produced no result: {out[:200]}")
+            # A crashed recorder is not an unreached state, and must never be
+            # returned as one. Folding the two together hid an IndentationError
+            # in the remote script for four runs: every recording came back with
+            # zero stops and zero candidates, which reads exactly like a page
+            # that tabs nowhere. The distinction is the whole point of rule 7 --
+            # a skip is reported, never silent -- so this raises.
+            raise RuntimeError(
+                f"the recorder produced no RESULT for {state} at {url}: {out[:400]}")
         raw = json.loads(line[len("RESULT "):])
         return self._assemble(raw, run_id)
 
@@ -151,10 +179,17 @@ class Session:
                 x=s["x"], y=s["y"], w=s["w"], h=s["h"], selector=s["selector"],
                 vx=s.get("vx", s["x"]), vy=s.get("vy", s["y"]),
                 screenshot=ref, obscured_by=s.get("obscured_by"),
+                anchors=s.get("anchors") or {},
             )
             if blurred is not None and png is not None:
                 stop.focus_delta = crop_diff(blurred, png, stop)
             rec.stops.append(stop)
+
+        for e in raw.get("excluded", []):
+            rec.excluded.append(Exclusion(
+                selector=e.get("selector", ""), tag=e.get("tag", ""), role=e.get("role"),
+                rule=e.get("rule", ""), reason=e.get("reason", ""),
+                source=e.get("source", "")))
 
         for c in raw.get("candidates", []):
             rec.candidates.append(Candidate(
@@ -162,6 +197,7 @@ class Session:
                 name=c.get("name"), x=c["x"], y=c["y"], w=c["w"], h=c["h"],
                 focusable=bool(c.get("focusable")),
                 sources=tuple(c.get("sources", ())),
+                anchors=c.get("anchors") or {},
             ))
         return rec
 
