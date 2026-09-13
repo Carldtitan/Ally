@@ -238,17 +238,37 @@ def check_focus_visible(rec: Recording, borderline_judge=None) -> Result:
 # --------------------------------------------------------------------------
 
 def _ordered_stops(rec: Recording) -> list:
-    """The stops 2.4.3 compares: real controls only.
+    """The stops 2.4.3 compares: one lap, real controls only.
 
-    A BODY stop is the wrap marker -- focus left the document -- not a control.
-    It sits at (0,0), so leaving it in sorts it to the front of reading order
-    and every comparison diverges at position 0. On the clean page that made
-    2.4.3 report a difference in all four states, which would have sent a model
-    call on every one of them and risked a false positive on a page whose
-    correct answer is nothing.
+    Two exclusions, both because an element that is not a new position must not
+    be treated as one.
+
+    **The lap closes at the first repeat.** Focus cycles: a modal dialog does it
+    by design, and an ordinary page wraps back to its first control. The
+    recorder captures a full lap plus the start of a second, so the same element
+    appears at both ends of the sequence. Reading order sorts the revisit by its
+    position and puts it near the front while tab order has it last, and the
+    comparison diverges at position 0 on a page with no defects in it. That was
+    the whole of 2.4.3's three false positives on the control page.
+
+    Stop 0 counts for identity even though it is not itself a Tab destination:
+    it is where focus sat on entry, so a later stop matching it is the lap
+    closing. Ignoring it made the first revisit look like a first visit and the
+    dialog kept diverging.
+
+    **BODY is the wrap marker**, not a control. It sits at (0,0) and would sort
+    to the front of reading order.
     """
-    return [s for s in rec.stops
-            if s.index > 0 and s.h > 0 and s.tag not in ("BODY", "HTML")]
+    seen: set = set()
+    kept: list = []
+    for s in rec.stops:
+        key = (s.selector, s.x, s.y)
+        if s.index > 0 and key in seen:
+            break                      # the lap closed; the rest is a second lap
+        seen.add(key)
+        if s.index > 0 and s.h > 0 and s.tag not in ("BODY", "HTML"):
+            kept.append(s)
+    return kept
 
 
 def reading_order(rec: Recording) -> list[int]:
