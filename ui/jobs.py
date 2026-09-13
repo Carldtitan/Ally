@@ -267,6 +267,37 @@ def find_pages(session, url: str, limit: int = MAX_PAGES) -> list:
 # --------------------------------------------------------------------------
 
 @_op
+def prepare_build(session, checkout: str) -> tuple[str, str]:
+    """Install and build the checkout once. Returns (what to serve, how to rebuild).
+
+    The re-audit serves the patched tree over a static file server, which is
+    right for a plain HTML page and wrong for every framework: a Vite repo's
+    index.html asks for /src/main.tsx, a static server hands that back as
+    TypeScript, and the page renders nothing.
+
+    Returns ("", "") when the repository produces nothing servable, so the
+    caller can say the fix step cannot run rather than re-auditing a blank page.
+    """
+    has = session.exec(f"cd {checkout} && test -f package.json && echo yes || echo no",
+                       timeout=60)
+    if "yes" not in (has.result or ""):
+        return checkout, ""            # a static site: serve it as it stands
+
+    session.exec(f"cd {checkout} && (npm ci --no-audit --no-fund || "
+                 f"npm install --no-audit --no-fund) 2>&1 | tail -3", timeout=1500)
+    build = f"cd {checkout} && npm run build"
+    session.exec(f"{build} 2>&1 | tail -4", timeout=1500)
+    found = session.exec(
+        f"cd {checkout} && for d in dist out build public .; do "
+        f'test -f "$d/index.html" && echo "$d" && break; done', timeout=60)
+    out = [l.strip() for l in (found.result or "").splitlines() if l.strip()]
+    if not out:
+        return "", ""
+    d = out[-1]
+    return (checkout if d == "." else f"{checkout}/{d}"), build
+
+
+@_op
 def clone_repo(session, owner: str, name: str, job_id: str) -> str:
     """A shallow clone of the repo the user named, inside the sandbox."""
     url = f"https://github.com/{owner}/{name}.git"
@@ -426,6 +457,16 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     from agent.recording import Census, Result
 
     results = []
+    #: What the entry page found, kept apart from the rest. The fix loop
+    #: re-audits one URL, so only the entry page's findings can be confirmed
+    #: closed; claiming closure for a page that was never re-tested is worse
+    #: than not fixing it.
+    entry_results = []
+    #: Lane recordings arrive already serialised -- they cross a thread
+    #: boundary as dicts -- so they are merged as dicts and never converted
+    #: again. Putting them back into audit.recordings, which is typed for
+    #: Recording objects, is what crashed the run at the end of the audit.
+    merged: dict = {}
     for lane in lanes:
         if lane.duplicate_of:
             job.pages.append({"url": lane.url, "source": "", "findings": 0,
@@ -438,10 +479,13 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         for f in lane.findings:
             fields = {k: (tuple(v) if isinstance(v, list) else v)
                       for k, v in f.items() if k != "census"}
-            results.append(Result(census=Census(**(f.get("census") or {})), **fields))
+            r = Result(census=Census(**(f.get("census") or {})), **fields)
+            results.append(r)
+            if lane.index == 0:
+                entry_results.append(r)
         short = lane.label or (lane.url.rstrip("/").rsplit("/", 1)[-1] or "home")
         for st, r in lane.recordings.items():
-            audit.recordings[f"{st} · {short}"] = r
+            merged[f"{st} · {short}"] = r
         if not audit.axe and lane.axe.get("ran"):
             audit.axe = type("A", (), lane.axe)
         job.pages.append({
@@ -462,7 +506,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         job.pages[0]["source"] = job.source
 
     job.findings = [r.to_dict() for r in results]
-    job.recordings = {s: r.to_dict() for s, r in audit.recordings.items()}
+    job.recordings = merged
+    # The loop reads its work from here, and it was never filled: every run
+    # reached the fix phase with an empty list and nothing to group.
+    audit.results = entry_results
     first_axe = next((l.axe for l in lanes if l.status == "done" and l.axe.get("ran")),
                      None)
     job.axe = first_axe or {"ran": False, "version": "", "violations": []}
@@ -473,9 +520,21 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
 
     # The loop, live. Every outcome is written to the table and the matching
     # rows for the criterion go into the next prompt.
+    job.say("fix", "Installing and building the repository so the patch can "
+                   "be re-audited")
+    serve_root, build_cmd = prepare_build(audit.session, CHECKOUT)
+    if not serve_root:
+        job.say("pr", "This repository produced no page a static server can "
+                      "serve, so a patch could not be re-audited. The findings "
+                      "above stand; no fix was attempted.", "warn")
+        return
+    job.say("fix", f"Serving {serve_root.rsplit('/', 1)[-1]}/"
+                   + (" and rebuilding between patches" if build_cmd else ""))
+
     lessons = Lessons(job.id)
     loop = FixLoop(audit, workdir=pathlib.Path(CHECKOUT),
-                   serve_root=f"{CHECKOUT}", client=_client(), lessons=lessons)
+                   serve_root=serve_root, client=_client(), lessons=lessons,
+                   build=build_cmd)
     loop.workdir = RemoteTree(audit.session, CHECKOUT)
 
     job.say("fix", "Writing patches, then rebuilding and re-auditing each one")
@@ -491,6 +550,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     s = loop.summary()
     job.say("reaudit", f"{s['closed']} closed, {s['created']} created, "
                        f"{s['patch_attempts_per_closed']} attempts per fix")
+    # A re-audit that could not be scored says so here rather than being read
+    # as a clean sweep.
+    if loop.blocked:
+        job.say("reaudit", loop.blocked, "warn")
 
     d = audit.session.exec(f"cd {CHECKOUT} && git diff --stat && echo '---' && "
                            f"git diff", timeout=180)

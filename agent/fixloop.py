@@ -77,10 +77,15 @@ class FixLoop:
     """Drives patch -> rebuild -> re-audit for one audit's findings."""
 
     def __init__(self, audit, workdir: pathlib.Path, serve_root: str,
-                 client=None, lessons=None, approve=None) -> None:
+                 client=None, lessons=None, approve=None, build: str = "") -> None:
         self.audit = audit
         self.workdir = pathlib.Path(workdir)
         self.serve_root = serve_root.rstrip("/")
+        #: A shell command that rebuilds the checkout, run before each re-audit.
+        #: Empty for a plain HTML page, which is served as it stands.
+        self.build = build
+        #: Why the last re-audit could not be scored, if it could not be.
+        self.blocked = ""
         self.client = client
         #: Stage 4 plugs the lessons table in here. Absent, the prompt carries
         #: no prior cases and the first instance of a criterion has nothing to
@@ -325,6 +330,16 @@ class FixLoop:
         before = {f"{r.criterion}:{t}" for r in self.audit.results
                   if r.status == "failed" for t in (r.targets or ("page",))}
 
+        # Rebuild first. Editing app/page.tsx changes nothing a browser can
+        # see until the bundler has run over it, and re-auditing the old build
+        # would measure the patch as having done nothing.
+        if self.build:
+            out = self.audit.session.exec(f"{self.build} 2>&1 | tail -4", timeout=1200)
+            if (out.exit_code or 0) != 0:
+                self.blocked = ("the patched tree did not build: "
+                                + (out.result or "").strip()[-200:])
+                return [], []
+
         self.audit.session.sb.process.exec(
             f"pkill -f 'http.server 3000'; sleep 1; cd {self.serve_root} && "
             "nohup python3 -m http.server 3000 > /tmp/patched.log 2>&1 & echo ok",
@@ -340,6 +355,15 @@ class FixLoop:
         for state in self.audit.states:
             rec = self.audit.session.record(local, state,
                                             run_id=f"{self.audit.run_id}-reaudit")
+            # A patched page that did not render is not a clean page. Every
+            # check would return not_evaluated, `after` would come back empty,
+            # and `before - after` would report every finding as closed without
+            # one of them having been re-tested. Refusing to score is the only
+            # honest answer here.
+            if rec.loaded_note:
+                self.blocked = ("the patched page did not render, so nothing "
+                                "could be re-tested: " + rec.loaded_note)
+                return [], []
             for criterion, fn in checks_mod.CHECKS.items():
                 with checks_mod.criterion_tag(criterion, state, local):
                     r = fn(rec) if criterion != "2.4.3" else fn(rec, judge=self.audit.judge)
