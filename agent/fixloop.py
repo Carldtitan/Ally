@@ -303,9 +303,13 @@ class FixLoop:
                                   r.split(":", 1)[1] for r in remaining[:4]) + ".")
                 continue
 
-            # Nothing closed and nothing created: the fix simply did not work.
-            # Put the file back before trying another technique.
+            # Every target closed, and new failures in their place. Net zero,
+            # so the file goes back -- and with it the claim: a patch that was
+            # undone has closed nothing, whatever the re-audit saw while it was
+            # applied. Leaving outcome.closed at 2 sent a run to the pull
+            # request step with an empty diff.
             target.write_text(original, encoding="utf-8")
+            outcome.closed, outcome.created = [], []
             retry_note = ("\n\nYour previous patch applied cleanly but the re-audit "
                           "still reports the problem. The fix was wrong, not the "
                           "location. Try a different technique.")
@@ -412,6 +416,13 @@ class FixLoop:
         # see until the bundler has run over it, and re-auditing the old build
         # would measure the patch as having done nothing.
         if self.build:
+            # The browser is back: the previous re-audit started it, and it is
+            # the largest process in a 1 GiB box. Stopping it here is why the
+            # first build succeeded and the second was killed. record() starts
+            # it again immediately below.
+            self.audit.session.exec("pkill -f chromium; sleep 2; true", timeout=120)
+            self.audit.session._ready = False
+
             # Piping into `tail` hands back tail's exit code, which is always
             # zero. A build that was killed for running out of memory reported
             # success, the half-written output was served, and the re-audit

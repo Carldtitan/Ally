@@ -685,7 +685,8 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         job.say("pr", "Diff ready. Pull request not requested.")
         return
     closed_total = sum(p.get("closed", 0) for p in job.patches)
-    if not closed_total:
+    has_diff = bool((job.diff or "").strip().strip("-"))
+    if not closed_total or not has_diff:
         job.pr_blocked = (
             "No pull request: the re-audit did not confirm a single fix, so "
             "there is nothing here worth sending. What each attempt did, and "
