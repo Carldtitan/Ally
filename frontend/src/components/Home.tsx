@@ -3,15 +3,17 @@
 import { useState } from 'react'
 import { api, type Job } from '../api'
 import { Icon } from '../Icon'
+import { whenOf } from '../when'
 
 interface Props {
   onStarted: (job: Job) => void
   runs: number
   findings: number
   prs: number
+  lastRun: number
 }
 
-export function Home({ onStarted, runs, findings, prs }: Props) {
+export function Home({ onStarted, runs, findings, prs, lastRun }: Props) {
   const [url, setUrl] = useState('')
   const [repo, setRepo] = useState('')
   const [busy, setBusy] = useState(false)
@@ -94,6 +96,10 @@ export function Home({ onStarted, runs, findings, prs }: Props) {
           <div className="cell"><small>Runs</small><strong className="mono">{runs}</strong></div>
           <div className="cell"><small>Findings</small><strong className="mono">{findings}</strong></div>
           <div className="cell"><small>Pull requests</small><strong className="mono">{prs}</strong></div>
+          <div className="cell">
+            <small>Last run</small>
+            <strong className="mono">{lastRun ? whenOf(lastRun) : '—'}</strong>
+          </div>
         </div>
       </section>
     </div>

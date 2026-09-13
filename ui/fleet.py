@@ -41,6 +41,10 @@ class Lane:
 
     index: int
     url: str
+    #: For a single-page flow: the registered state name to reach, and the label
+    #: of the control that reaches it.
+    state: str = ""
+    label: str = ""
     sandbox_id: str = ""
     watch_url: str = ""
     #: "waiting" | "running" | "done" | "failed" | "skipped"
@@ -53,7 +57,8 @@ class Lane:
 
     def to_dict(self) -> dict:
         return {
-            "index": self.index, "url": self.url, "sandbox_id": self.sandbox_id,
+            "index": self.index, "url": self.url, "label": self.label,
+            "sandbox_id": self.sandbox_id,
             "watch_url": self.watch_url, "status": self.status, "note": self.note,
             "source": self.source,
             "failed": sum(1 for f in self.findings if f.get("status") == "failed"),
@@ -94,14 +99,17 @@ def run_lanes(lanes: list[Lane], states: list[str], judge,
                 lane.watch_url = session.watch_url()
             except Exception:
                 pass
-            say(lane.index, f"sandbox ready, opening {lane.url}", "info")
+            say(lane.index, "sandbox ready, "
+                + (f"opening {lane.url} then pressing {lane.label!r}"
+                   if lane.label else f"opening {lane.url}"), "info")
 
-            audit = Audit(lane.url, sandbox_id=sid or None, states=states,
+            lane_states = [lane.state] if lane.state else states
+            audit = Audit(lane.url, sandbox_id=sid or None, states=lane_states,
                           run_id=f"lane-{lane.index}", use_weave=False, judge=judge)
             audit.session = session
             results = list(audit.run())
 
-            rec = audit.recordings.get(states[0]) if states else None
+            rec = audit.recordings.get(lane_states[0]) if lane_states else None
             bad = rec.loaded_note if rec is not None else "nothing was recorded"
             if bad:
                 lane.status = "skipped"
@@ -116,7 +124,8 @@ def run_lanes(lanes: list[Lane], states: list[str], judge,
                         "violations": audit.axe.violations if audit.axe else []}
             lane.status = "done"
             failed = sum(1 for f in lane.findings if f["status"] == "failed")
-            say(lane.index, f"{failed} finding(s) on {lane.url}", "info")
+            say(lane.index, f"{failed} finding(s) on "
+                + (lane.label or lane.url), "info")
         except Exception as exc:
             lane.status = "failed"
             lane.note = f"{type(exc).__name__}: {str(exc)[:160]}"

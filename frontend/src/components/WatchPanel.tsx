@@ -21,7 +21,7 @@ export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
 
   const screens = [
     ...(job.watch_url
-      ? [{ index: 0, url: job.url, watch_url: job.watch_url,
+      ? [{ index: 0, url: job.url, label: '', watch_url: job.watch_url,
            status: job.status === 'running' ? 'running' : job.status,
            note: '', failed: 0, checks: 0, sandbox_id: '', source: '' }]
       : []),
@@ -64,7 +64,7 @@ export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
                 <span className="mono" style={{ fontSize: 'var(--text-caption)',
                         overflow: 'hidden', textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap', minWidth: 0 }}>
-                  {s.url.replace(/^https?:\/\//, '')}
+                  {s.label || s.url.replace(/^https?:\/\//, '')}
                 </span>
                 <a className="button secondary" href={s.watch_url}
                    target="_blank" rel="noreferrer"

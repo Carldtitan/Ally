@@ -8,6 +8,7 @@ import { api, type Job } from '../api'
 import { Icon } from '../Icon'
 import { LiveView } from './LiveView'
 import { Findings } from './Findings'
+import { whenOf, agoOf, tookOf } from '../when'
 import { WatchPanel } from './WatchPanel'
 
 const STEPS = [
@@ -43,7 +44,8 @@ export function statusClass(status: string): string {
 interface Props {
   job: Job | null
   rows: { id: string; url: string; repo: string; status: string
-          phase: string; findings: number; pr_url: string }[]
+          phase: string; findings: number; pr_url: string
+          pages: number; watch_url: string; started: number; finished: number }[]
   onOpen: (id: string) => void
   onUpdate: (job: Job) => void
   onClose: () => void
@@ -93,7 +95,7 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
             <table className="grid">
               <thead>
                 <tr>
-                  <th>Page</th><th>Repository</th><th>State</th>
+                  <th>Page</th><th>Repository</th><th>Started</th><th>State</th>
                   <th className="num">Findings</th><th />
                 </tr>
               </thead>
@@ -104,6 +106,11 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
                           textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.url}</td>
                     <td className="mono">
                       {r.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {whenOf(r.started)}
+                      <span className="muted" style={{ display: 'block',
+                            fontSize: 'var(--text-caption)' }}>{agoOf(r.started)}</span>
                     </td>
                     <td>
                       <span className={`status-label ${statusClass(r.status)}`}>
@@ -150,7 +157,12 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
             <i aria-hidden="true" />
             {job.status === 'running' ? job.phase : job.status}
           </span>
-          <span className="status-label status-neutral"><i aria-hidden="true" />{job.elapsed}s</span>
+          <span className="status-label status-neutral">
+            <i aria-hidden="true" />{whenOf(job.started)}
+          </span>
+          <span className="status-label status-queued">
+            <i aria-hidden="true" />{tookOf(job.elapsed)}
+          </span>
         </div>
       </header>
 
@@ -162,6 +174,8 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
         <div><dt>Pages</dt><dd>{job.pages.length || 1}</dd></div>
         <div><dt>States</dt><dd>{Object.keys(job.recordings).length}</dd></div>
         <div><dt>Checks</dt><dd>{job.findings.length}</dd></div>
+        <div><dt>Started</dt><dd>{whenOf(job.started)}</dd></div>
+        <div><dt>Took</dt><dd>{tookOf(job.elapsed)}</dd></div>
       </dl>
 
       {job.pages.length > 1 && (

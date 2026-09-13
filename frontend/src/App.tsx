@@ -9,6 +9,7 @@ import { LoopTab } from './components/LoopTab'
 type Row = {
   id: string; url: string; repo: string; status: string
   phase: string; findings: number; pr_url: string
+  pages: number; watch_url: string; started: number; finished: number
 }
 
 export default function App() {
@@ -53,7 +54,8 @@ export default function App() {
       <div className="app-main" id="main">
         {tab === 'home' && (
           <Home onStarted={started} runs={rows.length}
-                findings={findingCount} prs={prCount} />
+                findings={findingCount} prs={prCount}
+                lastRun={rows.length ? Math.max(...rows.map((r) => r.started)) : 0} />
         )}
         {tab === 'runs' && (
           <Runs job={job} rows={rows} onOpen={open} onUpdate={setJob}

@@ -77,7 +77,8 @@ export interface Job {
   lesson_ids: number[]
   watch_url: string
   pages: { url: string; source: string; findings: number }[]
-  lanes: { index: number; url: string; sandbox_id: string; watch_url: string
+  lanes: { index: number; url: string; label: string
+           sandbox_id: string; watch_url: string
            status: string; note: string; source: string
            failed: number; checks: number }[]
   pr_url: string
@@ -119,7 +120,8 @@ export const api = {
   job: (id: string) => req<Job>(`/api/job/${id}`),
   jobs: () => req<{ jobs: { id: string; url: string; repo: string; status: string
                            phase: string; findings: number; pr_url: string
-                           pages: number; watch_url: string }[] }>('/api/job'),
+                           pages: number; watch_url: string
+                           started: number; finished: number }[] }>('/api/job'),
   audits: () => req<{ runs: { run_id: string; url: string; states: number
                              stops: number; frames: number
                              counts: Record<string, number> }[] }>('/api/audits'),

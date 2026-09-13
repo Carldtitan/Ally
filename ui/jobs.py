@@ -195,6 +195,7 @@ def guess_source(session, url: str, checkout: str) -> str:
 
 
 MAX_PAGES = 6
+MAX_LANES = 4
 
 
 @_op
@@ -367,13 +368,37 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     if extra_pages:
         job.say("audit", f"{len(extra_pages)} more page(s) linked from here; "
                          f"driving {'them' if len(extra_pages) > 1 else 'it'} too")
-    if extra_pages:
+    # Linked pages first. When there are none -- and a single-page app has none,
+    # because it navigates by pressing buttons rather than following hrefs --
+    # the states of the one page are the pages. Clearway's repository has one
+    # route, app/page.tsx, and everything a visitor calls a screen is a step
+    # inside it, so a run that only crawls links reports "1 page" on an app that
+    # plainly has more.
+    step_lanes: list = []
+    if not extra_pages and not states:
+        from ui.steps import discover_steps, register_step_state
+
+        steps = discover_steps(audit.session, job.url,
+                               limit=MAX_LANES - 1)
+        if steps:
+            job.say("audit", "no linked pages; "
+                             f"{len(steps)} step(s) inside this one: "
+                             + ", ".join(s["label"] for s in steps))
+        for i, st in enumerate(steps):
+            name = register_step_state(f"step-{i + 1}", st["selector"])
+            step_lanes.append((name, st["label"]))
+
+    if extra_pages or step_lanes:
         from ui.fleet import Lane, MAX_SANDBOXES, run_lanes
 
-        lanes = [Lane(index=i + 1, url=u)
-                 for i, u in enumerate(extra_pages[: MAX_SANDBOXES - 1])]
+        if extra_pages:
+            lanes = [Lane(index=i + 1, url=u)
+                     for i, u in enumerate(extra_pages[: MAX_SANDBOXES - 1])]
+        else:
+            lanes = [Lane(index=i + 1, url=job.url, label=label, state=name)
+                     for i, (name, label) in enumerate(step_lanes)]
         job.lanes = [l.to_dict() for l in lanes]
-        job.say("audit", f"{len(lanes)} more page(s), one sandbox each, in parallel")
+        job.say("audit", f"{len(lanes)} more, one sandbox each, in parallel")
 
         def say(i: int, msg: str, level: str) -> None:
             job.say("audit", f"page {i}: {msg}", level)
@@ -392,11 +417,12 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
                           for k, v in f.items() if k != "census"}
                 results.append(Result(census=Census(**(f.get("census") or {})),
                                       **fields))
-            short = lane.url.rstrip("/").rsplit("/", 1)[-1] or "home"
+            short = lane.label or lane.url.rstrip("/").rsplit("/", 1)[-1] or "home"
             for st, r in lane.recordings.items():
                 audit.recordings[f"{st} · {short}"] = r
             job.pages.append({
-                "url": lane.url, "source": "",
+                "url": (f"{lane.url}  ({lane.label})" if lane.label else lane.url),
+                "source": "",
                 "findings": sum(1 for f in lane.findings
                                 if f.get("status") == "failed")})
 
