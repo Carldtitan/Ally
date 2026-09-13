@@ -81,13 +81,31 @@ def build_runner(url: str, state: str, max_tabs: int = 40) -> str:
 # a page where nothing has an id.
 SELECTOR_FN = """
 function sel(el) {
+  // A full ancestor path, not just the element and its parent.
+  //
+  // A bare tag name collided: the delivery dialog holds several unlabelled
+  // <input> elements, each the only input inside its own wrapper, so every one
+  // of them produced the selector "input". Consecutive different inputs then
+  // looked like the same element repeating, and 2.1.2 reported a keyboard trap
+  // on a page with no defects in it.
   if (el.id) return '#' + el.id;
-  var p = el.tagName.toLowerCase(), n = el.parentNode;
-  if (!n || !n.children) return p;
-  var same = Array.prototype.filter.call(n.children, function (c) { return c.tagName === el.tagName; });
-  var i = Array.prototype.indexOf.call(same, el);
-  var base = (n.id ? '#' + n.id + ' > ' : '') + p;
-  return same.length > 1 ? base + ':nth-of-type(' + (i + 1) + ')' : base;
+  var parts = [];
+  for (var n = el; n && n.nodeType === 1 && n !== document.documentElement;
+       n = n.parentElement) {
+    if (n.id) { parts.unshift('#' + n.id); break; }
+    var part = n.tagName.toLowerCase();
+    var p = n.parentElement;
+    if (p) {
+      var same = Array.prototype.filter.call(p.children, function (c) {
+        return c.tagName === n.tagName; });
+      if (same.length > 1) {
+        part += ':nth-of-type(' + (Array.prototype.indexOf.call(same, n) + 1) + ')';
+      }
+    }
+    parts.unshift(part);
+    if (parts.length >= 7) break;
+  }
+  return parts.join('>');
 }
 """
 

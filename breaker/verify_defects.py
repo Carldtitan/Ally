@@ -49,13 +49,14 @@ ASSERTS = {
                   "return !!e && getComputedStyle(e).flexDirection==='row-reverse';",
     ("2-4-3", 3): "var e=document.querySelector('[role=\"tablist\"]');"
                   "return !!e && getComputedStyle(e).flexDirection==='row-reverse';",
-    # Focus the control, then read the computed outline while it is focused.
-    ("2-4-7", 1): "var e=document.getElementById('full_name'); e.focus();"
-                  "return getComputedStyle(e).outlineStyle==='none';",
-    ("2-4-7", 2): "var e=document.querySelector('.city_input'); e.focus();"
-                  "return getComputedStyle(e).outlineStyle==='none';",
-    ("2-4-7", 3): "var e=document.querySelector('[role=\"switch\"]'); e.focus();"
-                  "return getComputedStyle(e).outlineStyle==='none';",
+    # 2.4.7 is NOT verified here. It used to be, by focusing the control and
+    # reading back outlineStyle, which broke two verification rules at once:
+    # rule 2, because applying `outline: none` and asserting the outline is
+    # none is a mirror rather than a test, and rule 4, because element.focus()
+    # is not keyboard focus and the browser does not paint the indicator for
+    # it. It passed while the switch defect was entirely absent.
+    # breaker/verify_focus_visible.py does it properly: real Tab presses, real
+    # screenshots, against the clean page as well as the broken one.
     # A cover really obscures only if it is the element painted at that point.
     ("2-4-11", 1): "var c=document.getElementById('ally-cover-1'); if(!c) return false;"
                    "var r=c.getBoundingClientRect();"
@@ -165,6 +166,8 @@ def main() -> None:
 
     manifest = json.loads((pathlib.Path(__file__).resolve().parent / "manifest.json")
                           .read_text(encoding="utf-8"))
+    # 2.4.7 is measured by verify_focus_visible.py, not here.
+    manifest["rows"] = [r for r in manifest["rows"] if r["criterion"] != "2.4.7"]
     trap_names = {1: "menu1", 2: "tablist", 3: "email"}
     ok = bad = 0
     print(f"{'criterion':10s} {'inst':>4s}  {'present':>8s}  region")
@@ -184,7 +187,8 @@ def main() -> None:
         print(f"{row['criterion']:10s} {row['instance']:>4d}  "
               f"{'YES' if present else 'NOT APPLIED':>8s}  {row['region']}{extra}")
     print("-" * 74)
-    print(f"{ok}/15 defects verified present in a browser")
+    print(f"{ok}/{ok + bad} defects verified present in a browser "
+          "(2.4.7 is covered by verify_focus_visible.py)")
     if bad:
         print("\nA defect that is not present would be scored as missed, which blames the "
               "checker for a fixture bug. Fix before running the baseline.")

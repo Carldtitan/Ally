@@ -128,6 +128,60 @@ The other four defects all live in the loaded state.
 
 ---
 
+## Verification rules
+
+Six rules, each from a bug found on 2026-09-12. Every one of them produced a
+clean-looking wrong answer, which is the same category as the nine false passes
+in the AccessiFix retrospective: not a crash, not an error, a confident result
+that was not true.
+
+The bug is recorded beside each rule so nobody weakens one later without
+knowing what it cost.
+
+**1. Every verifier runs against the clean page too, and must return zero.**
+A check that only ever sees the broken page cannot tell you it works.
+*Bug: the 2.4.7 switch defect never applied, and the verification passed anyway.
+It asserted the damage was present without ever asking what an undamaged page
+looked like.*
+
+**2. Never verify by reading back the thing you changed.** Applying
+`outline: none` and then asserting the outline is none is a mirror, not a test.
+Verify against the rendered result.
+*Bug: the tautological 2.4.7 verification. It could not have failed.*
+
+**3. No constant without its measurement beside it.** A threshold with no
+recorded numbers is a guess that looks like a decision.
+*Bug: the focus-delta floor was guessed at 0.002. Measured: caret-only on a
+focused text input is 0.002, a real outline is 0.18, the switch's
+border-and-background indicator is 0.69. The floor is now 0.005, above
+caret-only and far below any genuine indicator.*
+
+**4. Reach every state the way a user does.** `element.focus()` is not keyboard
+focus: the browser only paints the indicator for real Tab focus.
+*Bug: verification by programmatic focus. On the clean page a JS-focused input
+reports `outline-style: none` and the two frames come back byte-identical,
+while the same element reached by Tab shows a 3px ring.*
+
+**5. Compare frames at the same scroll position.** Focus scrolls the page, so
+comparing against the previous stop mixes "an indicator appeared" with "the
+page moved".
+*Bug: focus-delta compared each frame against the previous stop's frame. The
+recorder now captures a focused and an unfocused frame at one scroll position,
+so the only difference is the indicator.*
+
+**6. Crop in the same coordinate space as the screenshot.** A screenshot is
+viewport-sized.
+*Bug: document coordinates cropped against a viewport screenshot, so anything
+below the fold was compared against unrelated pixels. Document coordinates stay
+the basis for reading order; viewport coordinates are carried alongside for
+cropping.*
+
+**The test that enforces rule 1** is `tests/test_clean_page.py`. It runs every
+check against the clean page and fails on any finding. That one test would have
+caught the switch defect, the crop bug and the threshold.
+
+---
+
 ## The benchmark
 
 **We do not use Ma11y.** It covers three of our five criteria, it injects into the rendered DOM rather than source so there is nothing to patch, and it deliberately excludes anything involving JavaScript. Remove any reference to it.

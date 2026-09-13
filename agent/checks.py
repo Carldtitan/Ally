@@ -237,13 +237,27 @@ def check_focus_visible(rec: Recording, borderline_judge=None) -> Result:
 # 2.4.3 Focus Order
 # --------------------------------------------------------------------------
 
+def _ordered_stops(rec: Recording) -> list:
+    """The stops 2.4.3 compares: real controls only.
+
+    A BODY stop is the wrap marker -- focus left the document -- not a control.
+    It sits at (0,0), so leaving it in sorts it to the front of reading order
+    and every comparison diverges at position 0. On the clean page that made
+    2.4.3 report a difference in all four states, which would have sent a model
+    call on every one of them and risked a false positive on a page whose
+    correct answer is nothing.
+    """
+    return [s for s in rec.stops
+            if s.index > 0 and s.h > 0 and s.tag not in ("BODY", "HTML")]
+
+
 def reading_order(rec: Recording) -> list[int]:
     """The order a sighted person would read these stops: top down, then left.
 
     Banded by row so that two controls side by side are not called out of order
     because one sits three pixels lower.
     """
-    indexed = [s for s in rec.stops if s.index > 0 and s.h > 0]
+    indexed = _ordered_stops(rec)
     band = 24
     return [s.index for s in sorted(indexed, key=lambda s: (round(s.y / band), s.x))]
 
@@ -260,7 +274,7 @@ def check_focus_order(rec: Recording, judge=None) -> Result:
     if (skip := _gate(rec, "2.4.3")):
         return skip
 
-    tab_order = [s.index for s in rec.stops if s.index > 0 and s.h > 0]
+    tab_order = [s.index for s in _ordered_stops(rec)]
     if len(tab_order) < 2:
         return not_evaluated("2.4.3", rec.state,
                              "fewer than two positioned stops, so there is no order "
