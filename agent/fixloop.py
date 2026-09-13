@@ -110,14 +110,27 @@ class FixLoop:
         retry_note = ""
 
         while patch_attempts < MAX_PATCH_ATTEMPTS:
-            plan = self._locate(group, source_path, findings_text, lesson_text,
-                                retry_note, outcome)
+            # Each patch attempt gets its OWN budget of three locate attempts.
+            # Sharing one cumulative counter let patch retries eat the locate
+            # budget: a group whose code was located perfectly three times, and
+            # whose three fixes simply did not work, was reported as "could not
+            # locate the code". That is exactly the conflation the two counters
+            # exist to prevent.
+            plan, used, last = self._locate(group, source_path, findings_text,
+                                            lesson_text, retry_note)
+            outcome.locate_attempts += used
             if plan is None:
-                return outcome            # locate budget spent
+                outcome.status = "could_not_locate"
+                outcome.reason = (f"could not locate the code after "
+                                  f"{MAX_LOCATE_ATTEMPTS} attempts on patch attempt "
+                                  f"{patch_attempts + 1}" + (f": {last}" if last else ""))
+                return outcome
 
             patch_attempts += 1
             outcome.patch_attempts = patch_attempts
-            plan.patch_id = f"{group.criterion.replace('.', '-')}-{group.component.strip('#')}-{patch_attempts}"
+            plan.patch_id = (f"{group.criterion.replace('.', '-')}-"
+                             f"{group.component.strip('#').replace('>', '-').replace(' ', '')}"
+                             f"-{patch_attempts}")
 
             # One copy of the patch, on disk. Approval and application both
             # read this file; nothing regenerates it.
@@ -140,15 +153,20 @@ class FixLoop:
                                                approved.edits[0].find if approved.edits else ""))
                 patch_attempts -= 1
                 outcome.locate_attempts += 1
-                if outcome.locate_attempts >= MAX_LOCATE_ATTEMPTS:
+                # The text stopped matching between planning and applying:
+                # a locate problem, so it does not spend a patch attempt.
+                if outcome.locate_attempts >= MAX_LOCATE_ATTEMPTS * MAX_PATCH_ATTEMPTS:
                     outcome.status = "could_not_locate"
                     outcome.reason = applied.reason
                     return outcome
                 continue
 
             closed, created = self.reaudit(group)
-            outcome.closed, outcome.created = closed, created
-            if closed and not any(group.criterion == c.split(":")[0] for c in created):
+            # Only this group's own targets count as closed by this patch.
+            mine = {f"{group.criterion}:{t}" for t in group.targets}
+            outcome.closed = [c for c in closed if c in mine]
+            outcome.created = created
+            if outcome.closed and not created:
                 outcome.status = "closed"
                 return outcome
 
@@ -163,24 +181,31 @@ class FixLoop:
     # -- the locate retry loop -------------------------------------------
 
     def _locate(self, group: Group, source_path: str, findings_text: str,
-                lesson_text: str, retry_note: str,
-                outcome: FixOutcome) -> PatchPlan | None:
+                lesson_text: str, retry_note: str):
+        """Edits whose `find` matches exactly once. Own budget of three.
+
+        Returns (plan or None, attempts used, last failure reason). The budget
+        is per call, not per group, so a patch retry never spends it.
+        """
         target = self.workdir / source_path
         source = target.read_text(encoding="utf-8")
+        used = 0
+        last = ""
 
-        while outcome.locate_attempts < MAX_LOCATE_ATTEMPTS:
-            outcome.locate_attempts += 1
+        while used < MAX_LOCATE_ATTEMPTS:
+            used += 1
             try:
                 data = request_edits(self.client, group.criterion, group.component,
                                      findings_text, source_path, source,
                                      lesson_text, retry_note)
             except Exception as exc:
-                outcome.reason = f"{type(exc).__name__}: {str(exc)[:120]}"
-                retry_note = f"\n\nThe previous response could not be read: {outcome.reason}"
+                last = f"{type(exc).__name__}: {str(exc)[:120]}"
+                retry_note = ("\n\nThe previous response could not be read: " + last)
                 continue
 
             edits = [Edit(**e) for e in data.get("edits", [])]
             if not edits:
+                last = "the response contained no edits"
                 retry_note = "\n\nYour previous response contained no edits."
                 continue
 
@@ -188,6 +213,8 @@ class FixLoop:
             if bad:
                 e = bad[0]
                 n = source.count(e.find)
+                last = (f"the find text matched {n} times"
+                        + (" (already fixed, or never there)" if n == 0 else ""))
                 retry_note = (
                     f"\n\nYour previous `find` matched {n} times, and it must match "
                     "exactly once. " + ("It is not in the file at all; here is what "
@@ -197,15 +224,14 @@ class FixLoop:
                     + locate_context(source, e.find))
                 continue
 
-            return PatchPlan(patch_id="pending", criterion=group.criterion,
-                             component=group.component,
-                             rationale=data.get("rationale", ""), edits=edits,
-                             addresses=[f.summary for f in group.findings],
-                             locate_attempts=outcome.locate_attempts)
+            return (PatchPlan(patch_id="pending", criterion=group.criterion,
+                              component=group.component,
+                              rationale=data.get("rationale", ""), edits=edits,
+                              addresses=[f.summary for f in group.findings],
+                              locate_attempts=used),
+                    used, "")
 
-        outcome.status = "could_not_locate"
-        outcome.reason = f"could not locate the code after {MAX_LOCATE_ATTEMPTS} attempts"
-        return None
+        return None, used, last
 
     # -- rebuild and re-audit --------------------------------------------
 
@@ -217,8 +243,12 @@ class FixLoop:
         only because the check no longer reports it, never because a patch
         applied.
         """
-        before = {f"{r.criterion}:{r.state}" for r in self.audit.results
-                  if r.status == "failed"}
+        # Closure is measured per TARGET, not per criterion:state. There are
+        # three planted instances of each criterion, so a group that fixes one
+        # of them would never clear a criterion-level key and no patch could
+        # ever be recorded as closing anything.
+        before = {f"{r.criterion}:{t}" for r in self.audit.results
+                  if r.status == "failed" for t in (r.targets or ("page",))}
 
         self.audit.session.sb.process.exec(
             f"pkill -f 'http.server 3000'; sleep 1; cd {self.serve_root} && "
@@ -239,7 +269,8 @@ class FixLoop:
                 with checks_mod.criterion_tag(criterion, state, local):
                     r = fn(rec) if criterion != "2.4.3" else fn(rec, judge=self.audit.judge)
                 if r.status == "failed":
-                    after.add(f"{criterion}:{state}")
+                    for t in (r.targets or ("page",)):
+                        after.add(f"{criterion}:{t}")
                 elif r.status == "not_evaluated":
                     not_eval.append(f"{criterion}:{state}")
 

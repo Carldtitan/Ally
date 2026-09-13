@@ -59,7 +59,7 @@ MAX_LOCATE_ATTEMPTS = 3
 MAX_PATCH_ATTEMPTS = 5
 
 MODEL = "meta-llama/Llama-3.3-70B-Instruct"
-MAX_TOKENS = 2000
+MAX_TOKENS = 4000
 
 
 # --------------------------------------------------------------------------
@@ -89,26 +89,42 @@ def component_of(selector: str) -> str:
     """
     if not selector:
         return "page"
+    # The deepest identified ancestor names the component. Taking the first id
+    # in the path, or the first path segment, put every element with no id in
+    # the same "body" group, which defeats the point of grouping.
     ids = re.findall(r"#([A-Za-z0-9_\-]+)", selector)
     if ids:
-        return f"#{ids[0]}"
-    return selector.split(">")[0].strip() or "page"
+        return f"#{ids[-1]}"
+    parts = [p.strip() for p in selector.split(">") if p.strip()]
+    return ">".join(parts[-2:]) if parts else "page"
 
 
 def group_findings(results: list[Result]) -> list[Group]:
-    """Group open failures by component, then by criterion."""
+    """Group open failures so each one is sent exactly once.
+
+    A finding carries every instance of its criterion it found, and the prompt
+    asks for all of them to be fixed in one response with one technique. So a
+    finding belongs to ONE group.
+
+    Fanning a finding out across one group per target looked like finer
+    grouping and was not: the first group's patch fixed all three instances,
+    and the other two groups then spent their whole locate budget hunting for
+    work that was already done, and were reported as "could not locate the
+    code". Finer grouping than this needs the checks to emit one finding per
+    instance, which is a change to the matrix, not to the patcher.
+    """
     groups: dict[str, Group] = {}
     for r in results:
         if r.status != "failed":
             continue
-        for target in (r.targets or ("page",)):
-            comp = component_of(target)
-            key = f"{r.criterion}:{comp}"
-            g = groups.setdefault(key, Group(criterion=r.criterion, component=comp))
-            if r not in g.findings:
-                g.findings.append(r)
-            if target not in g.targets:
-                g.targets.append(target)
+        targets = list(r.targets or ("page",))
+        comp = component_of(targets[0])
+        key = f"{r.criterion}:{r.state}:{comp}"
+        g = groups.setdefault(key, Group(criterion=r.criterion, component=comp))
+        g.findings.append(r)
+        for t in targets:
+            if t not in g.targets:
+                g.targets.append(t)
     return sorted(groups.values(), key=lambda g: (g.criterion, g.component))
 
 
@@ -139,8 +155,22 @@ class PatchPlan:
         return asdict(self)
 
 
+_UNSAFE_ID = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def safe_id(patch_id: str) -> str:
+    """A patch id that is a legal filename everywhere.
+
+    A component name like `section:nth-of-type(5)>div` carries a colon, and on
+    Windows a colon in a path is the alternate-data-stream separator: the write
+    silently landed on a stream of a file named `2-1-1-section` instead of
+    creating the file. The patch was then not where anything expected it.
+    """
+    return _UNSAFE_ID.sub("-", patch_id).strip("-")[:120] or "patch"
+
+
 def plan_path(root: pathlib.Path, run_id: str, patch_id: str) -> pathlib.Path:
-    return root / "runs" / run_id / "patches" / f"{patch_id}.json"
+    return root / "runs" / run_id / "patches" / f"{safe_id(patch_id)}.json"
 
 
 def write_plan(root: pathlib.Path, run_id: str, plan: PatchPlan) -> tuple[pathlib.Path, str]:
@@ -303,7 +333,16 @@ def request_edits(client, criterion: str, component: str, findings_text: str,
         response_format={"type": "json_schema",
                          "json_schema": {"name": "Patch", "schema": SCHEMA}},
         max_tokens=MAX_TOKENS)
-    return json.loads((r.choices[0].message.content or "").strip())
+    choice = r.choices[0]
+    body = (choice.message.content or "").strip()
+    if choice.finish_reason == "length":
+        # Truncated mid-object. Say so rather than letting json.loads raise
+        # "Unterminated string", which reads as a model failure when it is a
+        # budget failure -- the same mistake as the 400-token cap earlier.
+        raise ValueError(
+            f"the response was cut off at max_tokens={MAX_TOKENS}; ask for a "
+            "shorter `find` rather than the whole element")
+    return json.loads(body)
 
 
 def locate_context(text: str, wanted: str, width: int = 400) -> str:
