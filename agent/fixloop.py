@@ -30,6 +30,7 @@ from ally import db
 from .patcher import (MAX_LOCATE_ATTEMPTS, MAX_PATCH_ATTEMPTS, ApplyOutcome,
                       Edit, Group, PatchPlan, apply_plan, group_findings,
                       locate_context, read_plan, request_edits, write_plan)
+from .lessons import Lesson, describe_fix, group_shape
 from .recording import Result, not_evaluated
 
 try:
@@ -101,6 +102,20 @@ class FixLoop:
         lesson_rows, lesson_text = [], ""
         if self.lessons is not None:
             lesson_rows, lesson_text = self.lessons.recall(group)
+            # The retrieved ids go into the trace for this patch call. Without
+            # them, "patch attempts per closed finding fell" is a line with no
+            # mechanism attached, and a falling line can equally mean the later
+            # findings were easier.
+            if weave is not None:
+                try:
+                    weave.attributes({
+                        "criterion": group.criterion,
+                        "component": group.component,
+                        "lesson_ids": [r["id"] for r in lesson_rows],
+                        "lessons_retrieved": len(lesson_rows),
+                    }).__enter__()
+                except Exception:
+                    pass
 
         outcome = FixOutcome(criterion=group.criterion, component=group.component,
                              status="could_not_locate",
@@ -172,6 +187,21 @@ class FixLoop:
             # instances were still open, which is the "stops at the first
             # occurrence" failure the three-instance benchmark exists to catch.
             remaining = sorted(mine - set(outcome.closed))
+            if self.lessons is not None:
+                # Written whether or not it worked. A fix that failed is the
+                # only thing that stops the next attempt repeating it.
+                self.lessons.record(Lesson(
+                    criterion=group.criterion,
+                    element_shape=group_shape(group),
+                    component=group.component,
+                    fix_applied=describe_fix(approved),
+                    closed=not remaining and not created,
+                    reaudit_said=("" if not remaining else
+                                  f"{len(remaining)} of {len(mine)} still failing: "
+                                  + ", ".join(r.split(":", 1)[1] for r in remaining[:3])),
+                    find_text=approved.edits[0].find if approved.edits else "",
+                    replace_text=approved.edits[0].replace if approved.edits else "",
+                    patch_attempt=patch_attempts))
             if not remaining and not created:
                 outcome.status = "closed"
                 return outcome
