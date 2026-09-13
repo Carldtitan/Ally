@@ -247,6 +247,117 @@ find/replace pair.
 
 ---
 
+## The unknown-site run: precision is 0 of 41
+
+Run before Stage 4, deliberately, because if precision collapsed on a page nobody
+built for us then the checks would have to change and Stage 4's numbers would have
+been computed against checks that no longer exist.
+
+It collapsed. **41 findings, 0 correct.**
+
+Two blockers found on the way, both worth recording:
+
+- **The sandbox cannot reach the open web.** The Daytona Tier 2 egress allowlist
+  passes Vercel hosts and nothing else. DNS resolves for any domain, but
+  `curl https://example.com` returns no response at all, and six candidate sites
+  all returned nothing. The runner is plain Python over CDP to 127.0.0.1:9222, so
+  it was pointed at a local Chrome instead — same runner from `build_runner`, same
+  check code the recall gate scores. Validated first against
+  `broken-app/2-4-3.html`, where it reproduced the sandbox recording exactly: 11
+  stops, 5 candidates, 8 exclusions.
+- **The first site tried was a bot wall, and all five checks passed it.**
+  allrecipes.com returned **HTTP 402** and a 316-character "contact support"
+  notice with 4 focusable elements. Every check reported a clean pass. Nothing in
+  the pipeline asserts the page is the page: the `loaded` state is satisfied by
+  `readyState === 'complete'`, which a 402, a 404 and a paywall all satisfy.
+  There is now a preflight that prints the status and the shape of the DOM before
+  any check runs, and says so loudly when the page does not look real.
+
+### The predictions, scored
+
+Written down before the run, so a rationalisation afterwards can be told from a
+prediction.
+
+| Predicted | Fired? |
+|---|---|
+| `MAX_TABS`=40 truncation reported as a 2.1.2 keyboard trap — called certain | **No.** The consent modal ended the sequence at 7 stops, so the cap was never reached. The code path is still there and still wrong; the confounder hid it. |
+| Focus entering an iframe read as a trap | **No.** 4 iframes present, focus never reached them. |
+| 2.1.1 false positives from `cursor: pointer` | **Yes, and far worse than predicted** — but mostly for reasons I did not predict. See below. |
+| 2.4.3 confused by multi-column layout | **Yes.** Exactly this, on the consent banner. |
+| 2.4.11 finding real violations on sticky headers | **No.** Zero findings. |
+| A consent widget dominating the measurement | **Yes**, and it turned out to be the single most important effect. |
+
+Two of six, one right for the wrong reasons, and three unfired because the
+confounder I also predicted suppressed them.
+
+### The census, which is what made this legible
+
+| Criterion | examined | failed | passed | undecided | nothing | excluded |
+|---|---|---|---|---|---|---|
+| 2.1.1 | 356 | 77 | 279 | 0 | 0 | **357** |
+| 2.1.2 | 12 | 0 | 12 | 0 | 0 | 0 |
+| 2.4.3 | 10 | 4 | 6 | 0 | 4 | 0 |
+| 2.4.7 | 10 | 0 | 10 | 0 | 2 | 0 |
+| 2.4.11 | 14 | 0 | 14 | 0 | 0 | 0 |
+
+Exclusions: 142 inside a larger control, 21–22 delegating container, 3–27 roving
+tabindex. **More elements were excluded than examined.**
+
+**The passes are the most misleading number here.** The page has 428 focusable
+elements. The Tab sequence recorded **7 stops**, all of them inside the cookie
+banner, because a modal consent dialog correctly confines focus. So 2.1.2, 2.4.7
+and 2.4.11 each "passed" having examined 10 to 14 elements — about 2% of the page.
+Without the census those three rows read as three clean passes on ikea.com. With
+it they read as three checks that barely looked. That is the whole reason the
+census was worth building, and it earned itself on the first real page.
+
+### 2.1.1: 0 of 39, with three distinct causes
+
+Every flagged element was inspected on the live page. Not one was a real
+violation.
+
+- **15 were not visible.** Hidden modals, unmounted React roots (`#wlo-modal`,
+  `#tugc-rr-pip-frontend-mount-point`, `#isx-chatbot-render-root`), collapsed
+  panels. **The candidate scan does not check visibility at all.** On our fixture
+  every element is visible, so this could never have shown up there.
+- **20 were carousel controls with `tabindex="-1"` and no accessible name.** They
+  are deliberately out of the tab order because their slide is off-screen. This is
+  the roving-tabindex pattern, but the carousel's container is not one of the ten
+  composite roles `managedByWidget` knows about, so the exclusion did not apply.
+- **3 contained focusable descendants**, so the function *is* keyboard reachable.
+  The delegating-container filter missed them because it requires the container to
+  have no text of its own, and these have both their own text and a focusable
+  child.
+- **1 selector no longer resolved** by the time it was re-checked. A live page
+  mutates under the recorder.
+
+### 2.4.3: 0 of 2, and the judge is not the problem
+
+All five positioned stops were inside the OneTrust banner, a two-column layout:
+a paragraph of inline links on the left, two stacked buttons on the right.
+
+    tab order     [1, 2, 3, 4, 5]     three links, then two buttons (DOM order)
+    reading order [4, 1, 2, 5, 3]     strict top-to-bottom by document y, then x
+
+The geometric reading order interleaves the right-hand buttons into the middle of
+the left-hand paragraph. Nobody reads a two-column layout that way. The judge then
+described that difference accurately and called it harmful.
+
+**So the judge reasoned correctly from a premise that was wrong.** Deriving
+reading order from element geometry works on our single-column fixture and does
+not survive a two-column layout. Blaming the model here would be the wrong
+diagnosis, and the fix is in the arithmetic, not the prompt.
+
+### What this means
+
+The fifteen-defect benchmark measures the checks against defects planted on a
+page built from W3C examples. 15 of 15 there and 0 of 41 here are both true, and
+the second is the one that describes the product. We tuned to the fixture, which
+is what this run existed to find out, and finding it before Stage 4 rather than
+after is the only reason the Stage 4 numbers will mean anything.
+
+---
+
 ## What changed so this cannot happen again
 
 **A recall gate that runs as often as the clean-page test.** The asymmetry was

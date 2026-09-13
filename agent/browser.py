@@ -61,6 +61,26 @@ STATES: dict[str, dict[str, object]] = {
         "assert": "document.activeElement.id",
         "expect_change": True,
     },
+    # The three above name our fixture's ids, so on any other page they fail
+    # their assertion and every criterion is not_evaluated. These two reach the
+    # same kinds of state on a page nobody built for us, using what the page
+    # declares about itself rather than guessed button text: an element saying
+    # it opens a dialog, or one saying it is collapsed.
+    "dialog-generic": {
+        "reach": "(function(){var t=document.querySelector('[aria-haspopup=\"dialog\"],"
+                 "[aria-modal=\"false\"],dialog + button,button[aria-controls]');"
+                 "if(t){t.click();return 1}return 0})()",
+        "assert": "!!document.querySelector('dialog[open],[role=\"dialog\"]:not([hidden]),"
+                  "[aria-modal=\"true\"]')",
+        "expect_change": True,
+    },
+    "menu-generic": {
+        "reach": "(function(){var t=document.querySelector('[aria-expanded=\"false\"]"
+                 "[aria-haspopup],[aria-expanded=\"false\"][aria-controls]');"
+                 "if(t){t.click();return 1}return 0})()",
+        "assert": "document.querySelectorAll('[aria-expanded=\"true\"]').length",
+        "expect_change": True,
+    },
 }
 
 
