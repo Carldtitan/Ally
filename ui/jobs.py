@@ -308,7 +308,8 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     audit = Audit(job.url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
                   states=states or ["loaded"], run_id=job.id)
     try:
-        job.watch_url = audit.session.watch_url()
+        if audit.session.start_desktop():
+            job.watch_url = audit.session.watch_url()
     except Exception:
         pass
     if weave is not None:

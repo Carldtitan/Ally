@@ -45,13 +45,48 @@ class Session:
             self._owned = True
         self.id = self.sb.id
         self._ready = False
+        self._desktop = False
 
     # -- lifecycle --------------------------------------------------------
+
+    def start_desktop(self, wait: int = 90) -> bool:
+        """Boot the virtual display and noVNC, and wait for the port to answer.
+
+        Nothing listens on 6080 until `computer_use.start()` has run, and the
+        Daytona proxy answers a request for a dead port with a JSON 502 body.
+        An iframe cannot tell that apart from a desktop -- it renders the JSON
+        as text -- so the watch URL must not be handed out before the port is
+        up. A run against BitEstate showed one live desktop beside three 502
+        bodies for exactly this reason: lane 0 reused a warm sandbox and the
+        other three were fresh.
+
+        Returns False if the desktop never comes up, so the caller can say so
+        rather than publishing a URL that will render an error.
+        """
+        if self._desktop:
+            return True
+        try:
+            self.sb.computer_use.start()
+        except Exception:
+            pass
+        probe = ("python3 -c \"import urllib.request as u; "
+                 "print(u.urlopen('http://127.0.0.1:6080/vnc.html', "
+                 "timeout=5).status)\" 2>/dev/null || echo down")
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            try:
+                if "200" in (self.sb.process.exec(probe, timeout=30).result or ""):
+                    self._desktop = True
+                    return True
+            except Exception:
+                pass
+            time.sleep(2)
+        return False
 
     def start_browser(self) -> None:
         if self._ready:
             return
-        self.sb.computer_use.start()
+        self.start_desktop()
         self.sb.process.exec(
             f"pkill -f chromium; sleep 2; DISPLAY=:0 nohup chromium {CHROME_FLAGS} "
             "about:blank > /tmp/chromium.log 2>&1 & echo ok", timeout=150)

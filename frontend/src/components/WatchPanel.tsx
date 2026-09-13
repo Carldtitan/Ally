@@ -22,7 +22,11 @@ export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
   // Lane 0 IS the entry page, with its own stream. Prepending job.watch_url as
   // well showed the same sandbox twice -- "bit-estate.vercel.app/" beside
   // "bit-estate.vercel.app" -- and turned four lanes into five panels.
-  const lanes = (job.lanes ?? []).filter((l) => l.watch_url)
+  //
+  // A lane whose desktop has not come up yet has no watch_url, and it stays in
+  // the grid as a placeholder rather than being filtered out: dropping it would
+  // report three browsers for four running sandboxes.
+  const lanes = job.lanes ?? []
   const screens = lanes.length > 0
     ? lanes
     : (job.watch_url
@@ -78,11 +82,20 @@ export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
                 </a>
               </figcaption>
               <div className="frame">
-                <iframe
-                  src={s.watch_url}
-                  title={`The browser auditing ${s.url}`}
-                  style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
-                />
+                {s.watch_url ? (
+                  <iframe
+                    key={s.watch_url}
+                    src={s.watch_url}
+                    title={`The browser auditing ${s.url}`}
+                    style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+                  />
+                ) : (
+                  <div className="frame-empty">
+                    {s.status === 'done' || s.status === 'failed'
+                      ? 'This sandbox had no live view'
+                      : 'Starting the desktop'}
+                  </div>
+                )}
               </div>
               {s.note && (
                 <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: 6 }}>

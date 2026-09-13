@@ -102,8 +102,15 @@ def run_lanes(lanes: list[Lane], states: list[str], judge,
         try:
             session, sid = _session_for(lane.index, reuse)
             lane.sandbox_id = sid
+            # Only after the desktop answers: the URL of a port nothing is
+            # listening on renders a 502 body inside the panel, and an iframe
+            # that loaded one never retries.
             try:
-                lane.watch_url = session.watch_url()
+                if session.start_desktop():
+                    lane.watch_url = session.watch_url()
+                else:
+                    say(lane.index, "no desktop on this sandbox; the audit "
+                        "runs but there is nothing to watch", "warn")
             except Exception:
                 pass
             say(lane.index, "sandbox ready, "
