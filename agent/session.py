@@ -170,6 +170,10 @@ class Session:
             consent_note=raw.get("consent_note", "") or "",
             menu_triggers=int(raw.get("menu_triggers") or 0),
             dialog_triggers=int(raw.get("dialog_triggers") or 0),
+            nav_error=raw.get("nav_error", "") or "",
+            http_status=int(raw.get("http_status") or 0),
+            text_length=int(raw.get("text_length") or 0),
+            title=raw.get("title", "") or "",
         )
         for s in raw.get("stops", []):
             png = base64.b64decode(s.pop("png_focused") or "") or None

@@ -225,7 +225,17 @@ send("DOM.getDocument", {"depth": -1})
 # document.body.focus() does not help: body is not focusable without a
 # tabindex, so the call is a no-op and the starting point is untouched.
 send("Page.navigate", {"url": "about:blank"}); time.sleep(1.0)
-send("Page.navigate", {"url": URL})
+# Page.navigate reports its own failure in errorText, and we were throwing that
+# away. A failed navigation still leaves readyState "complete" -- on Chrome's own
+# network error page, which has two focusable buttons, Reload and Back. A run
+# against clearway audited that error page and reported four passes. One retry,
+# because a cold sandbox sometimes misses the first connection, then it is fatal.
+nav = send("Page.navigate", {"url": URL})
+nav_error = (nav.get("result") or {}).get("errorText") or ""
+if nav_error:
+    time.sleep(2.0)
+    nav = send("Page.navigate", {"url": URL})
+    nav_error = (nav.get("result") or {}).get("errorText") or ""
 # Wait for the document to actually be complete rather than sleeping a fixed
 # guess: the page's scripts set tabindex values, so tabbing before they run
 # reaches a different set of elements.
@@ -699,6 +709,16 @@ print("RESULT " + json.dumps({
     "truncated": truncated,
     "page_height": val("document.documentElement.scrollHeight") or 0,
     "consent_note": consent,
+    # Did the page load at all? Three independent answers, because each misses a
+    # different failure: CDP's own navigation error, the HTTP status the browser
+    # recorded, and whether anything rendered. A block page answers 402 with a
+    # perfectly complete DOM; a DNS failure answers with errorText; a soft 404
+    # answers 200 with nothing in it.
+    "nav_error": nav_error,
+    "http_status": val("performance.getEntriesByType('navigation')[0] ? "
+                       "performance.getEntriesByType('navigation')[0].responseStatus : 0") or 0,
+    "text_length": val("document.body ? document.body.innerText.length : 0") or 0,
+    "title": val("document.title") or "",
     # What the page declares about itself, so the caller can decide whether the
     # menu and dialog passes are worth running at all. Asking a person which
     # states to tab is asking them a question about our internals.

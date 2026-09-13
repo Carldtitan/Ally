@@ -81,6 +81,11 @@ class Job:
     axe: dict = field(default_factory=dict)
     patches: list = field(default_factory=list)
     lesson_ids: list = field(default_factory=list)
+    #: The sandbox's noVNC stream. Watching the browser being driven is the
+    #: whole point of running it in a sandbox rather than headless on a laptop.
+    watch_url: str = ""
+    #: Every page this run visited, in the order it reached them.
+    pages: list = field(default_factory=list)
     pr_url: str = ""
     pr_blocked: str = ""
     diff: str = ""
@@ -113,6 +118,7 @@ def recent(limit: int = 20) -> list[dict]:
         js = sorted(JOBS.values(), key=lambda j: j.started, reverse=True)[:limit]
     return [{"id": j.id, "url": j.url, "repo": j.repo, "status": j.status,
              "phase": j.phase, "findings": len(j.findings), "pr_url": j.pr_url,
+             "pages": len(j.pages), "watch_url": j.watch_url,
              "started": j.started} for j in js]
 
 
@@ -140,11 +146,33 @@ def guess_source(session, url: str, checkout: str) -> str:
     then an index file in a directory that looks like a web root.
     """
     listing = session.exec(
-        f"cd {checkout} && git ls-files | grep -Ei '\\.(html|htm|jsx|tsx|vue|svelte)$' "
-        f"| head -400", timeout=120)
+        f"cd {checkout} && git ls-files | grep -Ei "
+        f"'\\.(html|htm|jsx|tsx|vue|svelte|astro)$' | head -600", timeout=120)
     files = [f.strip() for f in (listing.result or "").splitlines() if f.strip()]
     if not files:
         return ""
+
+    # Framework routes first. Next.js App Router puts the page for "/" in
+    # app/page.tsx and for "/pricing" in app/pricing/page.tsx; the Pages Router
+    # uses pages/index.tsx. A run against clearway picked app/layout.tsx, because
+    # the old fallback was "shallowest file wins" and layout sorts first.
+    from urllib.parse import urlparse
+
+    route = (urlparse(url).path or "/").strip("/")
+    candidates = []
+    if route:
+        candidates += [f"app/{route}/page.tsx", f"app/{route}/page.jsx",
+                       f"app/{route}/page.js", f"pages/{route}.tsx",
+                       f"pages/{route}.jsx", f"src/app/{route}/page.tsx",
+                       f"src/pages/{route}.tsx"]
+    else:
+        candidates += ["app/page.tsx", "app/page.jsx", "app/page.js",
+                       "pages/index.tsx", "pages/index.jsx",
+                       "src/app/page.tsx", "src/pages/index.tsx"]
+    lower = {f.lower(): f for f in files}
+    for c in candidates:
+        if c.lower() in lower:
+            return lower[c.lower()]
 
     tail = url.rstrip("/").rsplit("/", 1)[-1] or "index.html"
     stem = tail.split("?")[0].split("#")[0]
@@ -162,6 +190,73 @@ def guess_source(session, url: str, checkout: str) -> str:
     if preferred:
         return sorted(preferred, key=lambda f: f.count("/"))[0]
     return sorted(files, key=lambda f: f.count("/"))[0]
+
+
+MAX_PAGES = 6
+
+
+@_op
+def find_pages(session, url: str, limit: int = MAX_PAGES) -> list:
+    """Same-origin pages linked from the first one, the first `limit` of them.
+
+    A multipage app audited at its front door tells you about the front door.
+    Clearway is one, and the first run against it looked at a single URL.
+
+    Deliberately shallow: the links on the entry page, in document order, not a
+    full crawl. It is the difference between auditing a site and auditing a
+    landing page, without turning the product into a spider.
+    """
+    js = """
+    (function () {
+      var here = location.origin, seen = {}, out = [];
+      var links = document.querySelectorAll('a[href]');
+      for (var i = 0; i < links.length; i++) {
+        var u;
+        try { u = new URL(links[i].getAttribute('href'), location.href); }
+        catch (e) { continue; }
+        if (u.origin !== here) continue;
+        if (/\\.(pdf|zip|png|jpe?g|svg|gif|mp4|webm|css|js)$/i.test(u.pathname)) continue;
+        u.hash = '';
+        var s = u.toString().replace(/\\/$/, '');
+        if (s === location.href.replace(/\\/$/, '').split('#')[0]) continue;
+        if (seen[s]) continue;
+        seen[s] = 1;
+        out.push(s);
+      }
+      return out;
+    })()
+    """
+    body = [
+        "import json, urllib.request, time",
+        "from websocket import create_connection",
+        "tabs = json.load(urllib.request.urlopen('http://127.0.0.1:9222/json'))",
+        "page = next(t for t in tabs if t['type'] == 'page')",
+        "ws = create_connection(page['webSocketDebuggerUrl'], timeout=60)",
+        "mid = 0",
+        "def send(m, p=None):",
+        "    global mid",
+        "    mid += 1",
+        "    ws.send(json.dumps({'id': mid, 'method': m, 'params': p or {}}))",
+        "    while True:",
+        "        r = json.loads(ws.recv())",
+        "        if r.get('id') == mid: return r",
+        "send('Page.enable')",
+        f"send('Page.navigate', {{'url': {url!r}}})",
+        "time.sleep(3.5)",
+        "r = send('Runtime.evaluate', {'expression': " + repr(js) + ", 'returnByValue': True})",
+        "print('LINKS ' + json.dumps(r.get('result', {}).get('result', {}).get('value') or []))",
+        "ws.close()",
+    ]
+    script = "/tmp/ally_links.py"
+    session.sb.fs.upload_file(chr(10).join(body).encode(), script)
+    out = session.exec(f"cd /tmp && python3 ally_links.py 2>&1 | tail -3", timeout=240)
+    line = next((l for l in (out.result or "").splitlines() if l.startswith("LINKS")), None)
+    if not line:
+        return []
+    try:
+        return json.loads(line[len("LINKS "):])[: limit - 1]
+    except Exception:
+        return []
 
 
 # --------------------------------------------------------------------------
@@ -209,6 +304,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     job.say("clone", f"Cloning {owner}/{name}")
     audit = Audit(job.url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
                   states=states or ["loaded"], run_id=job.id)
+    try:
+        job.watch_url = audit.session.watch_url()
+    except Exception:
+        pass
     if weave is not None:
         client = getattr(audit, "weave_client", None)
         if client is not None:
@@ -225,8 +324,20 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     # running is a question about the page, not a question for whoever pasted the
     # URL: the recorder reports how many elements declare themselves a menu
     # trigger or a dialog, and that decides it.
-    job.say("audit", "Tabbing through the loaded page")
+    job.say("audit", "Driving the page")
     results = list(audit.run())
+
+    # A page that did not load is not a clean page. Chrome's own network error
+    # screen has two reachable buttons, Reload and Back, and a complete DOM, so
+    # every check passes on it. A run against clearway reported four passes on
+    # exactly that. This is checked before anything is believed.
+    first = audit.recordings.get("loaded")
+    note = first.loaded_note if first is not None else "nothing was recorded"
+    if note:
+        raise RuntimeError(
+            f"the page did not load, so there is nothing to audit: {note}"
+            + (f" (title {first.title!r})" if first is not None and first.title else ""))
+    job.pages.append({"url": job.url, "source": "", "findings": 0})
 
     extra = []
     first = audit.recordings.get("loaded")
@@ -246,14 +357,45 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         audit.recordings.update(more.recordings)
         audit.results = results
 
+    # A multipage app audited at its front door tells you about the front door.
+    extra_pages = find_pages(audit.session, job.url) if not states else []
+    if extra_pages:
+        job.say("audit", f"{len(extra_pages)} more page(s) linked from here; "
+                         f"driving {'them' if len(extra_pages) > 1 else 'it'} too")
+    for page_url in extra_pages:
+        try:
+            more = Audit(page_url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
+                         states=["loaded"], run_id=f"{job.id}-{len(job.pages)}",
+                         use_weave=False, judge=audit.judge)
+            more.session = audit.session
+            page_results = list(more.run())
+        except Exception as exc:
+            job.say("audit", f"{page_url}: {type(exc).__name__}", "warn")
+            continue
+        rec = more.recordings.get("loaded")
+        bad = rec.loaded_note if rec is not None else "nothing was recorded"
+        if bad:
+            job.say("audit", f"{page_url}: skipped, {bad}", "warn")
+            continue
+        failed_here = sum(1 for r in page_results if r.status == "failed")
+        job.pages.append({"url": page_url, "source": "", "findings": failed_here})
+        results += page_results
+        for st, r in more.recordings.items():
+            audit.recordings[f"{st} · {page_url.rsplit('/', 1)[-1] or 'home'}"] = r
+        job.say("audit", f"{page_url}: {failed_here} finding(s)")
+
     job.findings = [r.to_dict() for r in results]
     job.recordings = {s: r.to_dict() for s, r in audit.recordings.items()}
     job.axe = {"ran": audit.axe.ran if audit.axe else False,
                "version": audit.axe.version if audit.axe else "",
                "violations": audit.axe.violations if audit.axe else []}
     failed = [r for r in results if r.status == "failed"]
-    job.say("audit", f"{len(failed)} finding(s) across "
-                     f"{len(results)} check(s)")
+    job.say("audit", f"{len(failed)} finding(s) across {len(results)} check(s) "
+                     f"on {len(job.pages)} page(s)")
+    if job.pages:
+        job.pages[0]["findings"] = sum(
+            1 for r in results[:len(audit.states)] if r.status == "failed")
+        job.pages[0]["source"] = job.source
 
     if not (want_fix and failed):
         job.say("pr", "Nothing to fix." if not failed else "Fix step skipped.")

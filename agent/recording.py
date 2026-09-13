@@ -291,6 +291,32 @@ class Recording:
     #: decide whether to tab those states, instead of asking the user.
     menu_triggers: int = 0
     dialog_triggers: int = 0
+    #: Did the page load? nav_error is CDP's own navigation failure, http_status
+    #: what the browser recorded, text_length whether anything rendered. See
+    #: Recording.loaded_note.
+    nav_error: str = ""
+    http_status: int = 0
+    text_length: int = 0
+    title: str = ""
+
+    @property
+    def loaded_note(self) -> str:
+        """Why this page is not the page, or "" when it looks real.
+
+        Ally audited Chrome's own network error page once and reported four
+        passes on it: readyState was "complete", and the Reload and Back buttons
+        were two perfectly reachable controls. A verdict about a page we never
+        reached is worse than no verdict, so this is checked before any check
+        runs.
+        """
+        if self.nav_error:
+            return f"the browser could not open it: {self.nav_error}"
+        if self.http_status and not (200 <= self.http_status < 400):
+            return f"the server answered {self.http_status}"
+        if self.text_length and self.text_length < 120:
+            return (f"only {self.text_length} characters rendered, which is a "
+                    "block page or an error, not a page to audit")
+        return ""
 
     # -- evidence resolution (SCOPE rule 5.2) ------------------------------
 
@@ -337,4 +363,8 @@ class Recording:
             "consent_note": self.consent_note,
             "menu_triggers": self.menu_triggers,
             "dialog_triggers": self.dialog_triggers,
+            "nav_error": self.nav_error,
+            "http_status": self.http_status,
+            "text_length": self.text_length,
+            "title": self.title,
         }

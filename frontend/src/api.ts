@@ -26,6 +26,9 @@ export interface Recording {
   excluded: { rule: string; reason: string; selector: string; tag: string }[]
   focusable_total?: number
   consent_note?: string
+  nav_error?: string
+  http_status?: number
+  title?: string
 }
 
 export interface Census {
@@ -72,6 +75,8 @@ export interface Job {
   axe: { ran: boolean; version: string; violations: AxeViolation[] }
   patches: Patch[]
   lesson_ids: number[]
+  watch_url: string
+  pages: { url: string; source: string; findings: number }[]
   pr_url: string
   pr_blocked: string
   diff: string
@@ -110,7 +115,8 @@ export const api = {
     }),
   job: (id: string) => req<Job>(`/api/job/${id}`),
   jobs: () => req<{ jobs: { id: string; url: string; repo: string; status: string
-                           phase: string; findings: number; pr_url: string }[] }>('/api/job'),
+                           phase: string; findings: number; pr_url: string
+                           pages: number; watch_url: string }[] }>('/api/job'),
   audits: () => req<{ runs: { run_id: string; url: string; states: number
                              stops: number; frames: number
                              counts: Record<string, number> }[] }>('/api/audits'),

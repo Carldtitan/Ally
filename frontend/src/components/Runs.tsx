@@ -8,6 +8,7 @@ import { api, type Job } from '../api'
 import { Icon } from '../Icon'
 import { LiveView } from './LiveView'
 import { Findings } from './Findings'
+import { WatchPanel } from './WatchPanel'
 
 const STEPS = [
   { id: 'clone', label: 'Read the code' },
@@ -158,9 +159,32 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
         <div><dt>Unresolved</dt><dd>{undecided.length}</dd></div>
         <div><dt>Closed</dt><dd>{closed}</dd></div>
         <div><dt>New issues</dt><dd>{created}</dd></div>
+        <div><dt>Pages</dt><dd>{job.pages.length || 1}</dd></div>
         <div><dt>States</dt><dd>{Object.keys(job.recordings).length}</dd></div>
         <div><dt>Checks</dt><dd>{job.findings.length}</dd></div>
       </dl>
+
+      {job.pages.length > 1 && (
+        <section className="section">
+          <div className="section-heading">
+            <div><span className="eyebrow">Coverage</span><h2>Pages audited</h2></div>
+            <span className="section-count">{job.pages.length}</span>
+          </div>
+          <table className="grid">
+            <thead><tr><th>Page</th><th>Source</th><th className="num">Findings</th></tr></thead>
+            <tbody>
+              {job.pages.map((pg, i) => (
+                <tr key={i}>
+                  <td className="mono" style={{ maxWidth: 380, overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.url}</td>
+                  <td className="mono">{pg.source || '—'}</td>
+                  <td className="num">{pg.findings}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <div className="rail" style={{ marginTop: 20 }}>
         {STEPS.map((s, i) => (
@@ -187,6 +211,8 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
           <i aria-hidden="true" />{job.pr_blocked}
         </p>
       )}
+
+      <WatchPanel url={job.watch_url} live={live} />
 
       <section className="section">
         <div className="section-heading">
