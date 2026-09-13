@@ -80,7 +80,7 @@ export interface Job {
   lanes: { index: number; url: string; label: string
            sandbox_id: string; watch_url: string
            status: string; note: string; source: string
-           failed: number; checks: number }[]
+           failed: number; checks: number; duplicate_of: string }[]
   pr_url: string
   pr_blocked: string
   diff: string

@@ -54,6 +54,12 @@ class Lane:
     recordings: dict = field(default_factory=dict)
     axe: dict = field(default_factory=dict)
     source: str = ""
+    #: What this lane actually rendered. Two routes that render the same screen
+    #: get the same signature: BitEstate serves Home at both "/" and "/home",
+    #: and auditing it twice would double-count every finding on it.
+    signature: str = ""
+    #: Set when another lane rendered this first.
+    duplicate_of: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -63,6 +69,7 @@ class Lane:
             "source": self.source,
             "failed": sum(1 for f in self.findings if f.get("status") == "failed"),
             "checks": len(self.findings),
+            "duplicate_of": self.duplicate_of,
         }
 
 
@@ -122,6 +129,12 @@ def run_lanes(lanes: list[Lane], states: list[str], judge,
             lane.axe = {"ran": audit.axe.ran if audit.axe else False,
                         "version": audit.axe.version if audit.axe else "",
                         "violations": audit.axe.violations if audit.axe else []}
+            stops = (rec.stops if rec is not None else []) or []
+            lane.signature = "|".join([
+                (rec.title if rec is not None else ""),
+                str(len(stops)),
+                ",".join(getattr(x, "selector", "") for x in stops[:8]),
+            ])
             lane.status = "done"
             failed = sum(1 for f in lane.findings if f["status"] == "failed")
             say(lane.index, f"{failed} finding(s) on "

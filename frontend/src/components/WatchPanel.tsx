@@ -19,14 +19,18 @@ function statusFor(status: string): string {
 export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
   const [open, setOpen] = useState(live)
 
-  const screens = [
-    ...(job.watch_url
-      ? [{ index: 0, url: job.url, label: '', watch_url: job.watch_url,
-           status: job.status === 'running' ? 'running' : job.status,
-           note: '', failed: 0, checks: 0, sandbox_id: '', source: '' }]
-      : []),
-    ...(job.lanes ?? []).filter((l) => l.watch_url),
-  ]
+  // Lane 0 IS the entry page, with its own stream. Prepending job.watch_url as
+  // well showed the same sandbox twice -- "bit-estate.vercel.app/" beside
+  // "bit-estate.vercel.app" -- and turned four lanes into five panels.
+  const lanes = (job.lanes ?? []).filter((l) => l.watch_url)
+  const screens = lanes.length > 0
+    ? lanes
+    : (job.watch_url
+        ? [{ index: 0, url: job.url, label: '', watch_url: job.watch_url,
+             status: job.status === 'running' ? 'running' : job.status,
+             note: '', failed: 0, checks: 0, sandbox_id: '', source: '',
+             duplicate_of: '' }]
+        : [])
   if (screens.length === 0) return null
 
   const wide = screens.length === 1
@@ -58,8 +62,9 @@ export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
             <figure key={s.index} style={{ margin: 0, minWidth: 0 }}>
               <figcaption style={{ display: 'flex', alignItems: 'center', gap: 8,
                                    marginBottom: 8, flexWrap: 'wrap' }}>
-                <span className={`status-label ${statusFor(s.status)}`}>
-                  <i aria-hidden="true" />{s.status}
+                <span className={`status-label ${s.duplicate_of
+                  ? 'status-attention' : statusFor(s.status)}`}>
+                  <i aria-hidden="true" />{s.duplicate_of ? 'same screen' : s.status}
                 </span>
                 <span className="mono" style={{ fontSize: 'var(--text-caption)',
                         overflow: 'hidden', textOverflow: 'ellipsis',

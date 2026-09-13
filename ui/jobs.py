@@ -338,9 +338,12 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     from ui.fleet import Lane, MAX_SANDBOXES, run_lanes
     from ui.routes import routes_from_repo
 
-    urls = routes_from_repo(audit.session, CHECKOUT, job.url, limit=MAX_SANDBOXES)
-    if not urls:
-        urls = [job.url]
+    # Discover more routes than there are sandboxes. A route that turns out to
+    # render a screen already seen frees its slot for the next one.
+    all_urls = routes_from_repo(audit.session, CHECKOUT, job.url, limit=12)
+    if not all_urls:
+        all_urls = [job.url]
+    urls = all_urls[:MAX_SANDBOXES]
 
     if len(urls) > 1:
         job.say("audit", f"{len(urls)} routes declared in the repository: "
@@ -382,10 +385,51 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     run_lanes(lanes, states or ["loaded"], audit.judge, say)
     job.lanes = [l.to_dict() for l in lanes]
 
+    # Different URL, same screen. BitEstate serves Home at both "/" and "/home",
+    # so four sandboxes can spend their time auditing two pages twice. A lane
+    # whose render matches one already seen is marked as a duplicate, its
+    # findings are dropped rather than double counted, and its slot is spent on
+    # a route nobody has looked at yet.
+    queue = [u for u in all_urls[MAX_SANDBOXES:]]
+    seen: dict = {}
+    for wave in range(2):
+        fresh = []
+        for lane in lanes:
+            if lane.status != "done" or not lane.signature:
+                continue
+            first = seen.get(lane.signature)
+            if first is None:
+                seen[lane.signature] = lane.url
+            elif lane.url != first:
+                lane.duplicate_of = first
+                fresh.append(lane)
+        if not fresh or not queue:
+            break
+        replacements = []
+        for lane in fresh:
+            if not queue:
+                break
+            nxt = queue.pop(0)
+            job.say("audit", f"[{lane.index}] {lane.url} renders the same screen as "
+                             f"{lane.duplicate_of}; trying {nxt} instead", "warn")
+            replacements.append(Lane(index=lane.index, url=nxt))
+        if not replacements:
+            break
+        run_lanes(replacements, states or ["loaded"], audit.judge, say)
+        for r in replacements:
+            for i, lane in enumerate(lanes):
+                if lane.index == r.index:
+                    lanes[i] = r
+        job.lanes = [l.to_dict() for l in lanes]
+
     from agent.recording import Census, Result
 
     results = []
     for lane in lanes:
+        if lane.duplicate_of:
+            job.pages.append({"url": lane.url, "source": "", "findings": 0,
+                              "note": f"same screen as {lane.duplicate_of}"})
+            continue
         if lane.status != "done":
             job.pages.append({"url": lane.url, "source": "",
                               "findings": 0, "note": lane.note or lane.status})
