@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { api, type Job } from '../api'
-import { IconCheck, IconAlert, IconClock, IconExternal, IconCode, IconLoop } from '../icons'
+import { Icon } from '../Icon'
 import { LiveView } from './LiveView'
 import { Findings } from './Findings'
 
@@ -74,11 +74,11 @@ export function JobRun({ job, onUpdate }: Props) {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <h1 className="notion-page-title" style={{ fontSize: '1.35rem' }}>{job.url}</h1>
-        <span className="notion-tag blue">{job.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}</span>
-        {job.source && <span className="notion-tag mono">{job.source}</span>}
-        <span className="notion-tag" style={{ marginLeft: 'auto' }}>
-          <IconClock size={12} />
+        <h1  style={{ fontSize: '1.35rem' }}>{job.url}</h1>
+        <span className="status-label status-neutral">{job.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}</span>
+        {job.source && <span className="status-label status-queued mono">{job.source}</span>}
+        <span className="status-label status-queued" style={{ marginLeft: 'auto' }}>
+          <Icon name="activity" size={14} />
           <span className="tnum">{job.elapsed}s</span>
         </span>
       </div>
@@ -93,19 +93,19 @@ export function JobRun({ job, onUpdate }: Props) {
       </div>
 
       {job.status === 'failed' && (
-        <div className="notion-callout danger" role="alert" style={{ marginBottom: 14 }}>
-          <IconAlert />
+        <div className="status-label status-blocked" role="alert" style={{ marginBottom: 14 }}>
+          <Icon name="warning" />
           <span><b>The run stopped.</b> {job.error}</span>
         </div>
       )}
       {err && (
-        <div className="notion-callout warning" style={{ marginBottom: 14 }}>
-          <IconAlert /><span>{err}</span>
+        <div className="status-label status-attention" style={{ marginBottom: 14 }}>
+          <Icon name="warning" /><span>{err}</span>
         </div>
       )}
       {job.status === 'done' && failed.length === 0 && (
-        <div className="notion-callout success" style={{ marginBottom: 14 }}>
-          <IconCheck />
+        <div className="status-label status-done" style={{ marginBottom: 14 }}>
+          <Icon name="check" />
           <span>
             <b>Nothing to fix.</b> Every check that could run reached a verdict and
             none of them failed, so no edit was made.
@@ -114,8 +114,8 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.pr_url && (
-        <div className="notion-callout success" style={{ marginBottom: 14 }}>
-          <IconCheck />
+        <div className="status-label status-done" style={{ marginBottom: 14 }}>
+          <Icon name="check" />
           <span>
             <b>Pull request open.</b>{' '}
             <a href={job.pr_url} target="_blank" rel="noreferrer">
@@ -127,17 +127,17 @@ export function JobRun({ job, onUpdate }: Props) {
         </div>
       )}
       {job.pr_blocked && !job.pr_url && (
-        <div className="notion-callout warning" style={{ marginBottom: 14 }}>
-          <IconAlert /><span>{job.pr_blocked}</span>
+        <div className="status-label status-attention" style={{ marginBottom: 14 }}>
+          <Icon name="warning" /><span>{job.pr_blocked}</span>
         </div>
       )}
 
-      <div className="notion-card">
-        <div className="notion-card-header">
+      <div className="card">
+        <div className="section-heading">
           <h2>What happened</h2>
           {job.trace_url && (
-            <a href={job.trace_url} target="_blank" rel="noreferrer" className="hint">
-              Full trace in Weave <IconExternal size={11} />
+            <a href={job.trace_url} target="_blank" rel="noreferrer" className="muted">
+              Full trace in Weave <Icon name="external" size={14} />
             </a>
           )}
         </div>
@@ -154,20 +154,20 @@ export function JobRun({ job, onUpdate }: Props) {
       </div>
 
       {Object.keys(job.recordings).length > 0 && (
-        <div className="notion-card">
-          <div className="notion-card-header">
+        <div className="card">
+          <div className="section-heading">
             <h2>The page, as the keyboard found it</h2>
-            <span className="hint">Select a stop to see that moment</span>
+            <span className="muted">Select a stop to see that moment</span>
           </div>
           <LiveView recordings={job.recordings} />
         </div>
       )}
 
       {job.findings.length > 0 && (
-        <div className="notion-card">
-          <div className="notion-card-header">
+        <div className="card">
+          <div className="section-heading">
             <h2>Findings</h2>
-            <span className="hint">
+            <span className="muted">
               {failed.length} failed of {job.findings.length} checks
             </span>
           </div>
@@ -176,16 +176,16 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.patches.length > 0 && (
-        <div className="notion-card">
-          <div className="notion-card-header">
+        <div className="card">
+          <div className="section-heading">
             <h2>Patches</h2>
-            <span className="hint">
+            <span className="muted">
               {lessons > 0
                 ? `${lessons} prior case${lessons === 1 ? '' : 's'} retrieved from earlier fixes`
                 : 'First pass: nothing to retrieve yet'}
             </span>
           </div>
-          <table className="notion-table">
+          <table className="grid">
             <thead>
               <tr>
                 <th>Criterion</th><th>Component</th><th>Result</th>
@@ -199,7 +199,7 @@ export function JobRun({ job, onUpdate }: Props) {
                   <td className="mono">{p.criterion}</td>
                   <td className="mono">{p.component}</td>
                   <td>
-                    <span className={`notion-tag ${p.status === 'closed' ? 'green' : ''}`}>
+                    <span className={`status-label ${p.status === 'closed' ? 'status-done' : 'status-queued'}`}>
                       {p.status.replace(/_/g, ' ')}
                     </span>
                   </td>
@@ -208,9 +208,9 @@ export function JobRun({ job, onUpdate }: Props) {
                   <td className="mono">
                     {p.lesson_ids.length > 0
                       ? <span title="Rows from the lessons table that went into this prompt">
-                          <IconLoop size={11} /> {p.lesson_ids.join(', ')}
+                          <Icon name="target" size={14} /> {p.lesson_ids.join(', ')}
                         </span>
-                      : <span className="hint">nothing yet</span>}
+                      : <span className="muted">nothing yet</span>}
                   </td>
                 </tr>
               ))}
@@ -220,12 +220,12 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.diff && (
-        <div className="notion-card">
-          <div className="notion-card-header">
+        <div className="card">
+          <div className="section-heading">
             <h2 style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <IconCode /> The change
+              <Icon name="code" /> The change
             </h2>
-            <span className="hint">Applied all-or-nothing, then re-audited</span>
+            <span className="muted">Applied all-or-nothing, then re-audited</span>
           </div>
           <div className="diff">
             {job.diff.split('\n').map((line, i) => {

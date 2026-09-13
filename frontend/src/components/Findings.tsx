@@ -5,7 +5,7 @@
 // rules axe actually fired here, never asserted from a table.
 
 import type { Finding, Job } from '../api'
-import { IconCheck, IconInfo } from '../icons'
+import { Icon } from '../Icon'
 
 const NAMES: Record<string, string> = {
   '2.1.1': 'Keyboard',
@@ -50,8 +50,8 @@ export function Findings({ findings, axe }: Props) {
   return (
     <>
       {axe.ran && gaps > 0 && (
-        <div className="notion-callout info" style={{ marginBottom: 14 }}>
-          <IconInfo />
+        <div className="status-label status-neutral" style={{ marginBottom: 14 }}>
+          <Icon name="eye" />
           <span>
             <b>{gaps} of the five</b> found a defect on this page that axe-core{' '}
             {axe.version} did not report. It ran, and it has no rule that fires on{' '}
@@ -60,8 +60,8 @@ export function Findings({ findings, axe }: Props) {
         </div>
       )}
       {!axe.ran && (
-        <div className="notion-callout warning" style={{ marginBottom: 14 }}>
-          <IconInfo />
+        <div className="status-label status-attention" style={{ marginBottom: 14 }}>
+          <Icon name="eye" />
           <span>
             axe-core did not run on this page, so its column is unmeasured rather
             than empty. An empty result and a scan that never happened are not the
@@ -70,8 +70,8 @@ export function Findings({ findings, axe }: Props) {
         </div>
       )}
 
-      <table className="notion-table">
-        <caption className="vh">Findings per criterion, with axe-core beside them</caption>
+      <table className="grid">
+        <caption className="sr-only">Findings per criterion, with axe-core beside them</caption>
         <thead>
           <tr>
             <th>Criterion</th>
@@ -86,7 +86,7 @@ export function Findings({ findings, axe }: Props) {
             return (
               <tr key={crit}>
                 <td>
-                  <span className="finding-crit">{crit}</span>
+                  <span className="mono">{crit}</span>
                   <span className="sel" style={{ display: 'block', fontSize: '0.72rem' }}>
                     {NAMES[crit]}
                   </span>
@@ -94,10 +94,10 @@ export function Findings({ findings, axe }: Props) {
                 <td>
                   {failed.length ? (
                     <>
-                      <span className="notion-tag red">failed</span>
-                      <span className="finding-body">{failed[0].summary}</span>
+                      <span className="status-label status-blocked">failed</span>
+                      <span className="muted">{failed[0].summary}</span>
                       {failed[0].targets.length > 0 && (
-                        <span className="finding-targets">
+                        <span className="tag-list">
                           {failed[0].targets.slice(0, 4).map((t) => (
                             <code key={t}>{t}</code>
                           ))}
@@ -106,23 +106,23 @@ export function Findings({ findings, axe }: Props) {
                     </>
                   ) : ne.length ? (
                     <>
-                      <span className="notion-tag">not evaluated</span>
-                      <span className="finding-body">{ne[0].reason}</span>
+                      <span className="status-label status-queued">not evaluated</span>
+                      <span className="muted">{ne[0].reason}</span>
                     </>
                   ) : mine.length ? (
-                    <span className="notion-tag green"><IconCheck size={11} /> passed</span>
+                    <span className="status-label status-done"><Icon name="check" size={14} /> passed</span>
                   ) : (
-                    <span className="hint">not run</span>
+                    <span className="muted">not run</span>
                   )}
                 </td>
                 <td>
                   {axeHits.length ? (
                     axeHits.map((h) => <code key={h} className="mono">{h}</code>)
                   ) : (
-                    <span className="hint">no rule fired</span>
+                    <span className="muted">no rule fired</span>
                   )}
                 </td>
-                <td className="num">{examined || <span className="hint">—</span>}</td>
+                <td className="num">{examined || <span className="muted">—</span>}</td>
               </tr>
             )
           })}
@@ -130,7 +130,7 @@ export function Findings({ findings, axe }: Props) {
       </table>
 
       {offScope.length > 0 && (
-        <p className="hint" style={{ marginTop: 10 }}>
+        <p className="muted" style={{ marginTop: 10 }}>
           axe also fired {offScope.length} rule{offScope.length === 1 ? '' : 's'} on
           things Ally does not claim: {offScope.slice(0, 8).join(', ')}. Those are
           its findings and they belong in the report unchanged.

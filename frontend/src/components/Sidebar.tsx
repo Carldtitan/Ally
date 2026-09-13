@@ -1,83 +1,73 @@
-// AccessiFix's sidebar, emoji and all. The structure its CSS depends on:
+// AccessiFix's sidebar, structure and markup as it ships:
 //
-//   .notion-sidebar            space-between
-//     .notion-sidebar-top        header + nav
-//     .notion-sidebar-footer     pinned to the bottom
-//   .notion-sidebar-item       space-between
-//     .notion-sidebar-item-label   icon + text together on the left
-//     .notion-sidebar-badge        optional, right
-//
-// An earlier pass replaced every emoji with drawn SVG on a general design
-// principle. The brief pins this look and the emoji are part of it -- Notion
-// uses emoji as page and nav icons natively, and AccessiFix is a Notion
-// pastiche. They are aria-hidden; the label beside each one carries the name.
+//   .sidebar
+//     .brand-row      .brand > BrandMark + name
+//     .sidebar-context  <small>Target</small><strong>owner/repo</strong>
+//     .side-nav       .nav-item[aria-current="page"] > Icon + <span>
+//     .sidebar-bottom .account-link > .avatar + .account-copy + chevron
+
+import { BrandMark, Icon, type IconName } from '../Icon'
 
 export type Tab = 'new' | 'runs' | 'benchmark' | 'loop'
 
 interface Props {
   tab: Tab
   setTab: (t: Tab) => void
-  theme: 'light' | 'dark'
-  setTheme: (t: 'light' | 'dark') => void
+  target: string
   openFindings: number
 }
 
-const MAIN: { id: Tab; label: string; emoji: string }[] = [
-  { id: 'new', label: 'New Audit', emoji: '🎯' },
-  { id: 'runs', label: 'Workspace', emoji: '💻' },
-]
-const EVIDENCE: { id: Tab; label: string; emoji: string }[] = [
-  { id: 'benchmark', label: 'Benchmark', emoji: '📊' },
-  { id: 'loop', label: 'The Loop', emoji: '🔄' },
+const NAV: { id: Tab; label: string; icon: IconName }[] = [
+  { id: 'new', label: 'Overview', icon: 'home' },
+  { id: 'runs', label: 'Runs', icon: 'activity' },
+  { id: 'benchmark', label: 'Findings', icon: 'warning' },
+  { id: 'loop', label: 'The loop', icon: 'target' },
 ]
 
-export function Sidebar({ tab, setTab, theme, setTheme, openFindings }: Props) {
-  const item = (m: { id: Tab; label: string; emoji: string }, badge = 0) => (
-    <button
-      key={m.id}
-      className={`notion-sidebar-item ${tab === m.id ? 'active' : ''}`}
-      aria-current={tab === m.id ? 'page' : undefined}
-      onClick={() => setTab(m.id)}
-    >
-      <span className="notion-sidebar-item-label">
-        <span className="sidebar-emoji" aria-hidden="true">{m.emoji}</span>
-        {m.label}
-      </span>
-      {badge ? <span className="notion-sidebar-badge tnum">{badge}</span> : null}
-    </button>
-  )
-
+export function Sidebar({ tab, setTab, target, openFindings }: Props) {
   return (
-    <aside className="notion-sidebar">
-      <div className="notion-sidebar-top">
-        <div className="notion-sidebar-header">
-          <span className="notion-sidebar-avatar" aria-hidden="true">⌨️</span>
-          <span className="notion-sidebar-identity">
-            <span className="notion-sidebar-title">Ally</span>
-            <span className="notion-sidebar-sub">Keyboard Accessibility</span>
-          </span>
-        </div>
-
-        <nav className="notion-sidebar-nav" aria-label="Sections">
-          {MAIN.map((m) => item(m, m.id === 'runs' ? openFindings : 0))}
-          <span className="notion-sidebar-section">Evidence</span>
-          {EVIDENCE.map((m) => item(m))}
-        </nav>
+    <aside className="sidebar" aria-label="Main">
+      <div className="brand-row">
+        <span className="brand">
+          <BrandMark />
+          <span>Ally</span>
+        </span>
       </div>
 
-      <div className="notion-sidebar-footer">
-        <button
-          className="notion-sidebar-item"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        >
-          <span className="notion-sidebar-item-label">Appearance</span>
-          <span className="notion-sidebar-item-label" style={{ fontWeight: 600 }}>
-            <span className="sidebar-emoji" aria-hidden="true">
-              {theme === 'dark' ? '🌙' : '☀️'}
-            </span>
-            {theme === 'dark' ? 'Dark' : 'Light'}
+      <p className="sidebar-context">
+        <small>Target</small>
+        <strong>{target || 'None yet'}</strong>
+      </p>
+
+      <nav className="side-nav" aria-label="Sections">
+        {NAV.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="nav-item"
+            aria-current={tab === item.id ? 'page' : undefined}
+            onClick={() => setTab(item.id)}
+            style={{ width: '100%', background: 'none', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <Icon name={item.icon} />
+            <span>{item.label}</span>
+            {item.id === 'runs' && openFindings > 0 && (
+              <span className="section-count" style={{ marginLeft: 'auto' }}>
+                {openFindings}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+
+      <div className="sidebar-bottom">
+        <span className="account-link">
+          <span className="avatar" aria-hidden="true">AL</span>
+          <span className="account-copy">
+            <strong>Ally</strong>
+            <span>Keyboard accessibility agent</span>
           </span>
-        </button>
+        </span>
       </div>
     </aside>
   )

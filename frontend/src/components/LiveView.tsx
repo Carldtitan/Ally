@@ -37,7 +37,7 @@ export function LiveView({ recordings }: Props) {
     tabRefs.current[next]?.focus()
   }
 
-  if (!rec) return <p className="hint">No recording yet.</p>
+  if (!rec) return <p className="muted">No recording yet.</p>
 
   const stops = rec.stops ?? []
   const withShot = stops.filter((s) => s.screenshot)
@@ -71,10 +71,10 @@ export function LiveView({ recordings }: Props) {
 
       <div role="tabpanel" id={`panel-${active}`} aria-labelledby={`tab-${active}`}>
         {!rec.state_reached ? (
-          <div className="empty">
+          <div className="quiet-panel">
             <strong>This state was never reached.</strong>
             {rec.reach_note}
-            <p className="hint" style={{ marginTop: 8 }}>
+            <p className="muted" style={{ marginTop: 8 }}>
               Every criterion for it is recorded as not evaluated with that reason,
               rather than judged against a page the run never entered.
             </p>
@@ -119,7 +119,7 @@ export function LiveView({ recordings }: Props) {
                         >
                           <span className="i tnum">{s.index}</span>
                           <span className="nm">
-                            {s.name ?? <span className="hint">no accessible name</span>}
+                            {s.name ?? <span className="muted">no accessible name</span>}
                             <span className="sel">
                               {(s.role ?? s.tag.toLowerCase())} · {s.selector}
                             </span>
@@ -139,7 +139,7 @@ export function LiveView({ recordings }: Props) {
               </div>
             </div>
 
-            <p className="hint" style={{ marginTop: 10 }}>
+            <p className="muted" style={{ marginTop: 10 }}>
               Stop 0 is where focus sat when the state was entered, before any Tab.
               It is half the evidence for a keyboard trap: focus was here, Tab was
               pressed, focus is still here.

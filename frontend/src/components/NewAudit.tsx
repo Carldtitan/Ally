@@ -1,18 +1,10 @@
-// The landing surface, composed the way AccessiFix composes one: a big page
-// icon, the title and description over a rule, a Getting Started callout, the
-// action row, then a stats grid.
-//
-// The earlier version was a bare heading over a two-field card and a lot of
-// empty page. The tokens were right and the composition was not, which is what
-// made it read as a different product.
-//
-// There was also a "how much of the page" selector offering "the loaded page"
-// or "plus menus and dialogs". That is a question about our page-state
-// machinery: whoever pastes a URL cannot answer it better than the agent can,
-// so the recorder counts what the page declares and the job decides.
+// The overview surface, on AccessiFix's page furniture:
+// .dashboard-page > .page-header (eyebrow, h1, p, .page-action-row) then
+// .section > .section-heading and .card / .cell.
 
 import { useEffect, useState } from 'react'
 import { api, type Job } from '../api'
+import { Icon } from '../Icon'
 
 interface Props {
   onStarted: (job: Job) => void
@@ -32,7 +24,7 @@ export function NewAudit({ onStarted }: Props) {
         findings: d.jobs.reduce((n, j) => n + j.findings, 0),
         prs: d.jobs.filter((j) => j.pr_url).length,
       }))
-      .catch(() => { /* the grid shows zeroes; nothing is invented */ })
+      .catch(() => { /* the cells read zero; nothing is invented */ })
   }, [])
 
   const repoLooksWrong = repo.trim() !== '' && !/github\.com\/[^/]+\/[^/]+/.test(repo)
@@ -57,29 +49,20 @@ export function NewAudit({ onStarted }: Props) {
   }
 
   return (
-    <>
-      <div className="notion-page-header">
-        <div className="notion-page-icon" aria-hidden="true">⌨️</div>
-        <h1 className="notion-page-title">Keyboard Accessibility Agent</h1>
-        <p className="notion-page-description">
-          Audit a live page the way a keyboard user meets it, patch the source
-          behind it, re-audit to confirm the fix held, and open a pull request.
-        </p>
-      </div>
-
-      <div className="notion-callout info">
-        <span className="notion-callout-icon" aria-hidden="true">💡</span>
+    <div className="dashboard-page">
+      <header className="page-header">
         <div>
-          <strong>Getting Started</strong>
-          <div style={{ marginTop: 2 }}>
-            Paste the page as a visitor sees it and the repository behind it.
-            Ally works out which file backs the page, and which states are worth
-            tabbing, from the repository and the page itself.
-          </div>
+          <span className="eyebrow">Overview</span>
+          <h1>Keyboard access, audited and fixed</h1>
+          <p>
+            One run is one complete pass: tab the live page, find what the
+            keyboard cannot reach, patch the source, re-audit to confirm the fix
+            held, open a pull request.
+          </p>
         </div>
-      </div>
+      </header>
 
-      <form className="notion-card" onSubmit={submit}>
+      <form className="card" onSubmit={submit}>
         <div className="audit-form">
           <div className="field">
             <label htmlFor="page-url">Live page</label>
@@ -110,75 +93,75 @@ export function NewAudit({ onStarted }: Props) {
               aria-invalid={repoLooksWrong}
               aria-describedby="repo-hint"
             />
-            <span className="hint" id="repo-hint">
-              {repoLooksWrong ? 'Expected github.com/owner/repo.' : ' '}
+            <span className="muted" style={{ fontSize: 'var(--text-caption)' }} id="repo-hint">
+              {repoLooksWrong
+                ? 'Expected github.com/owner/repo.'
+                : 'Ally finds the file that backs the page itself.'}
             </span>
           </div>
         </div>
 
-        <div className="audit-actions">
-          <button className="btn btn-primary" type="submit" disabled={busy || repoLooksWrong}>
-            <span aria-hidden="true">🚀</span>
-            {busy ? 'Starting…' : 'Audit and Fix'}
+        <div className="field-row">
+          <button className="button primary large" type="submit" disabled={busy || repoLooksWrong}>
+            <Icon name="play" />
+            {busy ? 'Starting…' : 'Start a run'}
           </button>
           <button
             type="button"
-            className="btn"
+            className="button secondary"
             onClick={() => example('https://broken-app.vercel.app/2-1-1.html',
                                    'https://github.com/Carldtitan/Ally')}
           >
-            <span aria-hidden="true">🐛</span>
-            Try a page with defects
+            <Icon name="warning" />
+            A page with defects
           </button>
           <button
             type="button"
-            className="btn"
+            className="button secondary"
             onClick={() => example('https://ally-clean-app.vercel.app/',
                                    'https://github.com/Carldtitan/Ally')}
           >
-            <span aria-hidden="true">✅</span>
-            Try a clean page
+            <Icon name="check" />
+            A page with none
           </button>
         </div>
 
         {error && (
-          <div className="notion-callout danger" style={{ marginTop: 16 }} role="alert">
-            <span className="notion-callout-icon" aria-hidden="true">⚠️</span>
-            <span>{error}</span>
-          </div>
+          <p className="status-label status-blocked" style={{ marginTop: 16 }} role="alert">
+            <i aria-hidden="true" />
+            {error}
+          </p>
         )}
       </form>
 
-      <div className="stats-grid">
-        <div className="notion-card stat-card">
+      <section className="section">
+        <div className="section-heading">
           <div>
-            <div className="stat-label">Audits Run</div>
-            <div className="stat-value tnum">{stats.runs}</div>
+            <span className="eyebrow">Ledger</span>
+            <h2>What this machine has done</h2>
+            <p>Read from the runs on disk, not from memory.</p>
           </div>
-          <span className="stat-card-emoji" aria-hidden="true">🔍</span>
         </div>
-        <div className="notion-card stat-card">
-          <div>
-            <div className="stat-label">Findings</div>
-            <div className="stat-value tnum">{stats.findings}</div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <div className="cell">
+            <small>Runs</small>
+            <strong className="mono">{stats.runs}</strong>
           </div>
-          <span className="stat-card-emoji" aria-hidden="true">⚠️</span>
-        </div>
-        <div className="notion-card stat-card">
-          <div>
-            <div className="stat-label">Pull Requests</div>
-            <div className="stat-value tnum">{stats.prs}</div>
+          <div className="cell">
+            <small>Findings</small>
+            <strong className="mono">{stats.findings}</strong>
           </div>
-          <span className="stat-card-emoji" aria-hidden="true">🔀</span>
-        </div>
-        <div className="notion-card stat-card">
-          <div>
-            <div className="stat-label">Criteria Covered</div>
-            <div className="stat-value tnum">5</div>
+          <div className="cell">
+            <small>Pull requests</small>
+            <strong className="mono">{stats.prs}</strong>
           </div>
-          <span className="stat-card-emoji" aria-hidden="true">📋</span>
+          <div className="cell">
+            <small>Criteria covered</small>
+            <strong className="mono">5</strong>
+          </div>
         </div>
-      </div>
-    </>
+      </section>
+    </div>
   )
 }
