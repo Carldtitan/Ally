@@ -293,6 +293,7 @@ STOP_JS = """
   }
   return {tag: e.tagName, selector: sel(e),
     x: Math.round(r.x + window.scrollX), y: Math.round(r.y + window.scrollY),
+    vx: Math.round(r.x), vy: Math.round(r.y),
     w: Math.round(r.width), h: Math.round(r.height), obscured_by: over};
 })()
 """.replace("__SELFN__", SELFN)
@@ -314,8 +315,23 @@ def capture(index):
         info["name"], info["role"] = ax(h["objectId"])
     else:
         info["name"], info["role"] = None, None
-    shot = send("Page.captureScreenshot", {"format": "png"})
-    info["png_b64"] = shot.get("result", {}).get("data")
+    # Two frames at the SAME scroll position: the element focused, and the
+    # same view with focus dropped. Comparing against the previous stop's
+    # frame cannot work, because focus scrolls the page and the two crops then
+    # show different content -- or the element was off-screen entirely in the
+    # earlier frame and there was nothing to compare.
+    info["png_focused"] = send("Page.captureScreenshot", {"format": "png"})         .get("result", {}).get("data")
+    if index > 0 and info["tag"] != "BODY":
+        ev("(function(){var a=document.activeElement;"
+           "if(a&&a.blur){window.__allyRefocus=a; a.blur();} return 1;})()")
+        time.sleep(0.18)
+        info["png_blurred"] = send("Page.captureScreenshot", {"format": "png"})             .get("result", {}).get("data")
+        # Put focus back so the Tab loop carries on from the right element.
+        ev("(function(){var e=window.__allyRefocus; if(e&&e.focus) e.focus();"
+           "return 1;})()")
+        time.sleep(0.12)
+    else:
+        info["png_blurred"] = None
     info["index"] = index
     return info
 

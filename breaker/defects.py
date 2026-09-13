@@ -173,7 +173,20 @@ VISIBLE = [
         criterion="2.4.7", instance=3, region="preferences, page foot",
         state="loaded", selector='[role="switch"]',
         expect="nothing on screen changes when focus lands on the switch",
-        css='[role="switch"]:focus { outline: none !important; }',
+        # The switch's indicator is NOT an outline. switch.css already sets
+        # outline:none on :focus and signals focus with padding, border-width
+        # and two background colours instead. `outline: none` here was a no-op,
+        # which is why the first fixture check passed while the defect was
+        # absent. Every focused property is pinned back to its unfocused value.
+        css=(
+            '[role="switch"]:focus {\n'
+            "  padding: 4px 4px 8px 8px !important;   /* base is 4px 4px 8px 8px */\n"
+            "  border-width: 0 !important;            /* base is 0 */\n"
+            "  background-color: transparent !important;\n"
+            "  outline: none !important;\n"
+            "}\n"
+            '[role="switch"]:focus span.switch { background-color: transparent !important; }'
+        ),
     ),
 ]
 

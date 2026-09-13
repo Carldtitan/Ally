@@ -101,21 +101,22 @@ class Session:
             truncated=raw.get("truncated", False),
             page_height=raw.get("page_height", 0),
         )
-        prev_png: bytes | None = None
         for s in raw.get("stops", []):
-            png = base64.b64decode(s.pop("png_b64") or "") or None
+            png = base64.b64decode(s.pop("png_focused") or "") or None
+            blurred_b64 = s.pop("png_blurred", None)
+            blurred = base64.b64decode(blurred_b64) if blurred_b64 else None
             ref = None
             if png:
                 ref = storage.save_screenshot(run_id, rec.state, s["index"], png)
             stop = Stop(
                 index=s["index"], tag=s["tag"], role=s.get("role"), name=s.get("name"),
                 x=s["x"], y=s["y"], w=s["w"], h=s["h"], selector=s["selector"],
+                vx=s.get("vx", s["x"]), vy=s.get("vy", s["y"]),
                 screenshot=ref, obscured_by=s.get("obscured_by"),
             )
-            if prev_png is not None and png is not None and s["index"] > 0:
-                stop.focus_delta = crop_diff(prev_png, png, stop)
+            if blurred is not None and png is not None:
+                stop.focus_delta = crop_diff(blurred, png, stop)
             rec.stops.append(stop)
-            prev_png = png
 
         for c in raw.get("candidates", []):
             rec.candidates.append(Candidate(
@@ -127,42 +128,39 @@ class Session:
         return rec
 
 
-def crop_diff(before: bytes, after: bytes, stop: Stop, pad: int = 8) -> float | None:
-    """Fraction of pixels that changed around the focused element.
+def crop_diff(unfocused: bytes, focused: bytes, stop: Stop,
+              pad: int = 8) -> float | None:
+    """Fraction of pixels the focus indicator changed, around the element.
 
-    Cropped to the element plus a small margin, because the focus indicator is
-    drawn just outside the box and a whole-page diff would be swamped by
-    scrolling. Returns None when the crop is empty or Pillow is unavailable, so
-    the check reports not_evaluated rather than inventing a number.
+    The two frames are captured at the same scroll position, one with the
+    element focused and one with focus dropped, so the only difference is the
+    indicator itself. Cropping in viewport space is then straightforward:
+    a screenshot is viewport-sized, and using document coordinates compared an
+    unrelated region for anything below the fold.
+
+    Returns None when the crop is empty or Pillow is missing, so the check
+    reports not_evaluated rather than inventing a number.
     """
     try:
         from PIL import Image, ImageChops
     except ImportError:
         return None
     try:
-        a = Image.open(io.BytesIO(before)).convert("RGB")
-        b = Image.open(io.BytesIO(after)).convert("RGB")
+        a = Image.open(io.BytesIO(unfocused)).convert("RGB")
+        b = Image.open(io.BytesIO(focused)).convert("RGB")
     except Exception:
         return None
     if a.size != b.size:
         return None
 
-    # Screenshots are viewport-sized, so crop in viewport space. The recorder
-    # stores document coordinates, so subtract the scroll implied by the frame.
-    left = max(0, stop.x - pad)
-    top = max(0, stop.y - pad)
-    right = min(a.width, stop.x + stop.w + pad)
-    bottom = min(a.height, stop.y + stop.h + pad)
+    left, top = max(0, stop.vx - pad), max(0, stop.vy - pad)
+    right = min(a.width, stop.vx + stop.w + pad)
+    bottom = min(a.height, stop.vy + stop.h + pad)
     if right <= left or bottom <= top:
-        # The element scrolled out of the captured frame: compare whole frames
-        # rather than reporting a number for a region we did not see.
-        box = None
-    else:
-        box = (left, top, right, bottom)
+        return None
 
-    if box:
-        a, b = a.crop(box), b.crop(box)
-    diff = ImageChops.difference(a, b).convert("L")
+    box = (int(left), int(top), int(right), int(bottom))
+    diff = ImageChops.difference(a.crop(box), b.crop(box)).convert("L")
     total = diff.width * diff.height
     if total == 0:
         return None

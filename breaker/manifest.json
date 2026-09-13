@@ -169,7 +169,7 @@
       "selector": "[role=\"switch\"]",
       "expect": "nothing on screen changes when focus lands on the switch",
       "replacements": [],
-      "css": "[role=\"switch\"]:focus { outline: none !important; }",
+      "css": "[role=\"switch\"]:focus {\n  padding: 4px 4px 8px 8px !important;   /* base is 4px 4px 8px 8px */\n  border-width: 0 !important;            /* base is 0 */\n  background-color: transparent !important;\n  outline: none !important;\n}\n[role=\"switch\"]:focus span.switch { background-color: transparent !important; }",
       "js": "",
       "html": "",
       "page": "2-4-7.html"

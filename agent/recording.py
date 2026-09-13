@@ -107,6 +107,11 @@ class Stop:
     w: int
     h: int
     selector: str
+    #: Viewport coordinates. Document coords above are what reading order is
+    #: derived from; these are what a screenshot crop must use, because a
+    #: screenshot is viewport-sized and the page scrolls as focus moves.
+    vx: int = 0
+    vy: int = 0
     #: What storage.save_screenshot returned. A path or a URL. Never bytes.
     screenshot: str | None = None
     #: Is the focused element the one painted at its own centre? (2.4.11)

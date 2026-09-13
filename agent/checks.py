@@ -174,8 +174,16 @@ def check_not_obscured(rec: Recording) -> Result:
 # --------------------------------------------------------------------------
 
 #: Below this fraction of changed pixels, nothing visible happened.
-INVISIBLE_BELOW = 0.002
-#: Above this, the indicator is unambiguous.
+#:
+#: Calibrated against measurement, not guessed. A focused text input always
+#: paints a blinking caret whether or not it has a focus indicator, and that
+#: alone measured 0.0017 to 0.0020 on the two input fields of the control page.
+#: A real outline on the same fields measured 0.1765 to 0.1795, and the switch's
+#: border-and-background indicator 0.6861. The floor therefore sits above
+#: caret-only and two orders of magnitude below any genuine indicator.
+INVISIBLE_BELOW = 0.005
+#: Above this, the indicator is unambiguous. Between the two is the band where
+#: a person might or might not notice, and the only part that is a judgement.
 VISIBLE_ABOVE = 0.02
 
 

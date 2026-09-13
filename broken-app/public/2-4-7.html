@@ -195,7 +195,13 @@
 .city_input:focus { outline: none !important; }
 
 /* 2.4.7 instance 3: preferences, page foot */
-[role="switch"]:focus { outline: none !important; }
+[role="switch"]:focus {
+  padding: 4px 4px 8px 8px !important;   /* base is 4px 4px 8px 8px */
+  border-width: 0 !important;            /* base is 0 */
+  background-color: transparent !important;
+  outline: none !important;
+}
+[role="switch"]:focus span.switch { background-color: transparent !important; }
 </style>
 </body>
 </html>
