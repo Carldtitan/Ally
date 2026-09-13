@@ -86,6 +86,8 @@ class Job:
     watch_url: str = ""
     #: Every page this run visited, in the order it reached them.
     pages: list = field(default_factory=list)
+    #: One entry per parallel sandbox, each with its own live desktop.
+    lanes: list = field(default_factory=list)
     pr_url: str = ""
     pr_blocked: str = ""
     diff: str = ""
@@ -358,31 +360,45 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         audit.results = results
 
     # A multipage app audited at its front door tells you about the front door.
+    # Each extra page gets its own sandbox, its own browser and its own desktop,
+    # so one page that hangs cannot affect another and the wall clock is the
+    # slowest page rather than the sum of them.
     extra_pages = find_pages(audit.session, job.url) if not states else []
     if extra_pages:
         job.say("audit", f"{len(extra_pages)} more page(s) linked from here; "
                          f"driving {'them' if len(extra_pages) > 1 else 'it'} too")
-    for page_url in extra_pages:
-        try:
-            more = Audit(page_url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
-                         states=["loaded"], run_id=f"{job.id}-{len(job.pages)}",
-                         use_weave=False, judge=audit.judge)
-            more.session = audit.session
-            page_results = list(more.run())
-        except Exception as exc:
-            job.say("audit", f"{page_url}: {type(exc).__name__}", "warn")
-            continue
-        rec = more.recordings.get("loaded")
-        bad = rec.loaded_note if rec is not None else "nothing was recorded"
-        if bad:
-            job.say("audit", f"{page_url}: skipped, {bad}", "warn")
-            continue
-        failed_here = sum(1 for r in page_results if r.status == "failed")
-        job.pages.append({"url": page_url, "source": "", "findings": failed_here})
-        results += page_results
-        for st, r in more.recordings.items():
-            audit.recordings[f"{st} · {page_url.rsplit('/', 1)[-1] or 'home'}"] = r
-        job.say("audit", f"{page_url}: {failed_here} finding(s)")
+    if extra_pages:
+        from ui.fleet import Lane, MAX_SANDBOXES, run_lanes
+
+        lanes = [Lane(index=i + 1, url=u)
+                 for i, u in enumerate(extra_pages[: MAX_SANDBOXES - 1])]
+        job.lanes = [l.to_dict() for l in lanes]
+        job.say("audit", f"{len(lanes)} more page(s), one sandbox each, in parallel")
+
+        def say(i: int, msg: str, level: str) -> None:
+            job.say("audit", f"page {i}: {msg}", level)
+            job.lanes = [l.to_dict() for l in lanes]
+
+        run_lanes(lanes, ["loaded"], audit.judge, say)
+        job.lanes = [l.to_dict() for l in lanes]
+
+        from agent.recording import Census, Result
+
+        for lane in lanes:
+            if lane.status != "done":
+                continue
+            for f in lane.findings:
+                fields = {k: (tuple(v) if isinstance(v, list) else v)
+                          for k, v in f.items() if k != "census"}
+                results.append(Result(census=Census(**(f.get("census") or {})),
+                                      **fields))
+            short = lane.url.rstrip("/").rsplit("/", 1)[-1] or "home"
+            for st, r in lane.recordings.items():
+                audit.recordings[f"{st} · {short}"] = r
+            job.pages.append({
+                "url": lane.url, "source": "",
+                "findings": sum(1 for f in lane.findings
+                                if f.get("status") == "failed")})
 
     job.findings = [r.to_dict() for r in results]
     job.recordings = {s: r.to_dict() for s, r in audit.recordings.items()}

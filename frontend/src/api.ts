@@ -77,6 +77,9 @@ export interface Job {
   lesson_ids: number[]
   watch_url: string
   pages: { url: string; source: string; findings: number }[]
+  lanes: { index: number; url: string; sandbox_id: string; watch_url: string
+           status: string; note: string; source: string
+           failed: number; checks: number }[]
   pr_url: string
   pr_blocked: string
   diff: string

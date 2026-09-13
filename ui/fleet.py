@@ -1,0 +1,140 @@
+"""Up to four sandboxes, one page each, audited in isolation and in parallel.
+
+The original plan, and the right one. A site is a set of pages; each page gets
+its own sandbox, its own Chromium and its own desktop to watch. Nothing is
+shared, so one page that hangs or crashes a browser cannot affect another, and
+the wall-clock cost of a five-page site is roughly the cost of its slowest page
+rather than the sum of all five.
+
+Four is the cap, and it is a quota decision rather than a technical one: the
+plan allows a handful of sandboxes and each one costs start-up time.
+
+The first sandbox is reused from `ALLY_SANDBOX` when it is set, because a warm
+sandbox starts a run in seconds where a cold one takes a minute.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import pathlib
+import threading
+from dataclasses import dataclass, field
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tools"))
+
+import wb_env  # noqa: E402
+
+try:
+    import weave
+except ImportError:
+    weave = None
+
+MAX_SANDBOXES = 4
+
+
+@dataclass
+class Lane:
+    """One page, one sandbox, one browser, one desktop."""
+
+    index: int
+    url: str
+    sandbox_id: str = ""
+    watch_url: str = ""
+    #: "waiting" | "running" | "done" | "failed" | "skipped"
+    status: str = "waiting"
+    note: str = ""
+    findings: list = field(default_factory=list)
+    recordings: dict = field(default_factory=dict)
+    axe: dict = field(default_factory=dict)
+    source: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "index": self.index, "url": self.url, "sandbox_id": self.sandbox_id,
+            "watch_url": self.watch_url, "status": self.status, "note": self.note,
+            "source": self.source,
+            "failed": sum(1 for f in self.findings if f.get("status") == "failed"),
+            "checks": len(self.findings),
+        }
+
+
+def _session_for(index: int, reuse: str | None):
+    """A session for lane `index`: the warm sandbox first, then fresh ones."""
+    from agent.session import Session
+
+    if index == 0 and reuse:
+        return Session(reuse), reuse
+    s = Session(None)                       # Session(None) creates a sandbox
+    sid = getattr(getattr(s, "sb", None), "id", "") or ""
+    return s, sid
+
+
+def run_lanes(lanes: list[Lane], states: list[str], judge,
+              say) -> list[Lane]:
+    """Drive every lane at once, each in its own sandbox. Blocks until all end.
+
+    `say(lane_index, message, level)` is called as things happen, so the caller
+    can stream progress without this module knowing what a UI is.
+    """
+    from agent.audit import Audit
+
+    reuse = os.environ.get("ALLY_SANDBOX")
+    threads: list[threading.Thread] = []
+
+    def drive(lane: Lane) -> None:
+        lane.status = "running"
+        session = None
+        try:
+            session, sid = _session_for(lane.index, reuse)
+            lane.sandbox_id = sid
+            try:
+                lane.watch_url = session.watch_url()
+            except Exception:
+                pass
+            say(lane.index, f"sandbox ready, opening {lane.url}", "info")
+
+            audit = Audit(lane.url, sandbox_id=sid or None, states=states,
+                          run_id=f"lane-{lane.index}", use_weave=False, judge=judge)
+            audit.session = session
+            results = list(audit.run())
+
+            rec = audit.recordings.get(states[0]) if states else None
+            bad = rec.loaded_note if rec is not None else "nothing was recorded"
+            if bad:
+                lane.status = "skipped"
+                lane.note = bad
+                say(lane.index, f"skipped: {bad}", "warn")
+                return
+
+            lane.findings = [r.to_dict() for r in results]
+            lane.recordings = {s: r.to_dict() for s, r in audit.recordings.items()}
+            lane.axe = {"ran": audit.axe.ran if audit.axe else False,
+                        "version": audit.axe.version if audit.axe else "",
+                        "violations": audit.axe.violations if audit.axe else []}
+            lane.status = "done"
+            failed = sum(1 for f in lane.findings if f["status"] == "failed")
+            say(lane.index, f"{failed} finding(s) on {lane.url}", "info")
+        except Exception as exc:
+            lane.status = "failed"
+            lane.note = f"{type(exc).__name__}: {str(exc)[:160]}"
+            say(lane.index, lane.note, "error")
+        finally:
+            # Session.close() only deletes a sandbox it created: it keeps an
+            # _owned flag and leaves a reused one alone. So this is safe to call
+            # on every lane, including the one that reuses ALLY_SANDBOX.
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+    for lane in lanes[:MAX_SANDBOXES]:
+        t = threading.Thread(target=drive, args=(lane,), daemon=True)
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join()
+    return lanes

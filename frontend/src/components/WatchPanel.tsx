@@ -1,45 +1,91 @@
-// The browser, live.
+// The browsers, live.
 //
-// Ally drives a real Chromium inside the sandbox under Xvfb, and the sandbox has
-// published a noVNC stream of that desktop the whole time -- the run just never
-// carried the URL. This is the difference between reading that a page was driven
-// and watching it happen.
+// Each page gets its own sandbox, its own Chromium and its own desktop. This
+// shows every one of them at once, so a multipage audit is something you watch
+// rather than something you wait for.
 
 import { useState } from 'react'
 import { Icon } from '../Icon'
+import type { Job } from '../api'
 
-export function WatchPanel({ url, live }: { url: string; live: boolean }) {
+function statusFor(status: string): string {
+  return status === 'done' ? 'status-done'
+    : status === 'failed' ? 'status-blocked'
+    : status === 'skipped' ? 'status-attention'
+    : status === 'running' ? 'status-live'
+    : 'status-queued'
+}
+
+export function WatchPanel({ job, live }: { job: Job; live: boolean }) {
   const [open, setOpen] = useState(live)
-  if (!url) return null
+
+  const screens = [
+    ...(job.watch_url
+      ? [{ index: 0, url: job.url, watch_url: job.watch_url,
+           status: job.status === 'running' ? 'running' : job.status,
+           note: '', failed: 0, checks: 0, sandbox_id: '', source: '' }]
+      : []),
+    ...(job.lanes ?? []).filter((l) => l.watch_url),
+  ]
+  if (screens.length === 0) return null
+
+  const wide = screens.length === 1
 
   return (
     <section className="section">
       <div className="section-heading">
         <div>
           <span className="eyebrow">Live</span>
-          <h2>The browser Ally is driving</h2>
-          <p>The sandbox desktop, streamed. What you see is the page being tabbed
-             through, in real time.</p>
+          <h2>{screens.length === 1 ? 'The browser' : `${screens.length} browsers`}</h2>
+          <p>One sandbox per page. Each desktop below is a real Chromium being
+             driven, streamed as it happens.</p>
         </div>
         <div className="page-action-row">
           <button className="button secondary" onClick={() => setOpen(!open)}>
             <Icon name={open ? 'close' : 'eye'} />
             {open ? 'Hide' : 'Show'}
           </button>
-          <a className="button secondary" href={url} target="_blank" rel="noreferrer">
-            <Icon name="external" /> Full screen
-          </a>
         </div>
       </div>
 
       {open && (
-        <div className="frame" style={{ aspectRatio: '1024 / 740' }}>
-          <iframe
-            src={url}
-            title="The sandbox desktop Ally is driving"
-            style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
-            allow="clipboard-read; clipboard-write"
-          />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: wide ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: 14,
+        }}>
+          {screens.map((s) => (
+            <figure key={s.index} style={{ margin: 0, minWidth: 0 }}>
+              <figcaption style={{ display: 'flex', alignItems: 'center', gap: 8,
+                                   marginBottom: 8, flexWrap: 'wrap' }}>
+                <span className={`status-label ${statusFor(s.status)}`}>
+                  <i aria-hidden="true" />{s.status}
+                </span>
+                <span className="mono" style={{ fontSize: 'var(--text-caption)',
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {s.url.replace(/^https?:\/\//, '')}
+                </span>
+                <a className="button secondary" href={s.watch_url}
+                   target="_blank" rel="noreferrer"
+                   style={{ marginLeft: 'auto', minHeight: 30, padding: '0 10px' }}>
+                  <Icon name="external" />
+                </a>
+              </figcaption>
+              <div className="frame">
+                <iframe
+                  src={s.watch_url}
+                  title={`The browser auditing ${s.url}`}
+                  style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+                />
+              </div>
+              {s.note && (
+                <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: 6 }}>
+                  {s.note}
+                </p>
+              )}
+            </figure>
+          ))}
         </div>
       )}
     </section>

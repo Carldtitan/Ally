@@ -212,7 +212,7 @@ export function Runs({ job, rows, onOpen, onUpdate, onClose }: Props) {
         </p>
       )}
 
-      <WatchPanel url={job.watch_url} live={live} />
+      <WatchPanel job={job} live={live} />
 
       <section className="section">
         <div className="section-heading">
