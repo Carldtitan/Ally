@@ -289,6 +289,7 @@ BUILD_ENV = ("PARCEL_WORKERS=1 JOBS=1 UV_THREADPOOL_SIZE=2 "
 #: 590 packages installed in 26 seconds in an empty sandbox and were killed in
 #: a reused one, with the bundler's setting inherited.
 INSTALL_ENV = ("NPM_CONFIG_AUDIT=false NPM_CONFIG_FUND=false CI=1 "
+               "NPM_CONFIG_MAXSOCKETS=2 NPM_CONFIG_PROGRESS=false "
                "NODE_OPTIONS=--max-old-space-size=384")
 
 

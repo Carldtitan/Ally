@@ -364,7 +364,24 @@ def locate_context(text: str, wanted: str, width: int = 400) -> str:
     """
     head = wanted.strip().splitlines()[0][:40] if wanted.strip() else ""
     idx = text.find(head) if head else -1
+
     if idx < 0:
-        return text[:width]
+        # The model's text is not in the file at all, which is the case this
+        # function exists for -- and it used to answer with the first 400
+        # characters, which are the imports. Three retries each got the imports
+        # back and each invented the code again. So look for the most
+        # distinctive thing the model wrote instead: the words a human would
+        # search for, longest first.
+        words = sorted({w for w in re.findall(r"[A-Za-z][A-Za-z0-9_-]{4,}", wanted)
+                        if w not in ("className", "return", "export", "default",
+                                     "import", "const", "aria", "onClick")},
+                       key=len, reverse=True)
+        for w in words[:8]:
+            idx = text.find(w)
+            if idx >= 0:
+                break
+        if idx < 0:
+            return text[:width]
+
     start = max(0, idx - width // 2)
     return text[start:start + width]
