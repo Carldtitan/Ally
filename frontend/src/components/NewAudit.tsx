@@ -42,11 +42,6 @@ export function NewAudit({ onStarted }: Props) {
     }
   }
 
-  function example(exUrl: string, exRepo: string) {
-    setUrl(exUrl)
-    setRepo(exRepo)
-    setError('')
-  }
 
   return (
     <div className="dashboard-page">
@@ -54,11 +49,6 @@ export function NewAudit({ onStarted }: Props) {
         <div>
           <span className="eyebrow">Overview</span>
           <h1>Keyboard access, audited and fixed</h1>
-          <p>
-            One run is one complete pass: tab the live page, find what the
-            keyboard cannot reach, patch the source, re-audit to confirm the fix
-            held, open a pull request.
-          </p>
         </div>
       </header>
 
@@ -93,11 +83,10 @@ export function NewAudit({ onStarted }: Props) {
               aria-invalid={repoLooksWrong}
               aria-describedby="repo-hint"
             />
-            <span className="muted" style={{ fontSize: 'var(--text-caption)' }} id="repo-hint">
-              {repoLooksWrong
-                ? 'Expected github.com/owner/repo.'
-                : 'Ally finds the file that backs the page itself.'}
-            </span>
+            {repoLooksWrong && (
+              <span className="muted" style={{ fontSize: 'var(--text-caption)' }}
+                    id="repo-hint">Expected github.com/owner/repo.</span>
+            )}
           </div>
         </div>
 
@@ -105,24 +94,6 @@ export function NewAudit({ onStarted }: Props) {
           <button className="button primary large" type="submit" disabled={busy || repoLooksWrong}>
             <Icon name="play" />
             {busy ? 'Starting…' : 'Start a run'}
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => example('https://broken-app.vercel.app/2-1-1.html',
-                                   'https://github.com/Carldtitan/Ally')}
-          >
-            <Icon name="warning" />
-            A page with defects
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => example('https://ally-clean-app.vercel.app/',
-                                   'https://github.com/Carldtitan/Ally')}
-          >
-            <Icon name="check" />
-            A page with none
           </button>
         </div>
 
