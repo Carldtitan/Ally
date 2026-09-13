@@ -74,6 +74,10 @@ class Group:
     component: str
     findings: list[Result] = field(default_factory=list)
     targets: list[str] = field(default_factory=list)
+    #: The page these findings are on. The loop re-audits this page to decide
+    #: whether the patch closed them, so findings from two pages never share a
+    #: group even when they name the same component.
+    page: str = ""
 
     @property
     def key(self) -> str:
@@ -119,8 +123,9 @@ def group_findings(results: list[Result]) -> list[Group]:
             continue
         targets = list(r.targets or ("page",))
         comp = component_of(targets[0])
-        key = f"{r.criterion}:{r.state}:{comp}"
-        g = groups.setdefault(key, Group(criterion=r.criterion, component=comp))
+        key = f"{r.criterion}:{r.state}:{comp}:{r.page}"
+        g = groups.setdefault(key, Group(criterion=r.criterion, component=comp,
+                                         page=r.page))
         g.findings.append(r)
         for t in targets:
             if t not in g.targets:

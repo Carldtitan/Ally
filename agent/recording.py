@@ -124,6 +124,12 @@ class Result:
     targets: tuple[str, ...] = ()
     #: Element-level outcome counts. See Census.
     census: Census = field(default_factory=Census)
+    #: The page this verdict is about. Empty on a single-page audit, where the
+    #: audit's own URL is the only answer. It exists so the fix loop can
+    #: re-audit the page a finding came from: a defect on /audit-trail was
+    #: being reported and then abandoned, because the loop only ever re-visited
+    #: the entry page and could not confirm a fix anywhere else.
+    page: str = ""
 
     def __post_init__(self) -> None:
         if self.status == "not_evaluated" and not self.reason:

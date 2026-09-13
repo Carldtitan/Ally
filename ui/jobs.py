@@ -281,6 +281,17 @@ def prepare_build(session, checkout: str) -> tuple[str, str]:
     has = session.exec(f"cd {checkout} && test -f package.json && echo yes || echo no",
                        timeout=60)
     if "yes" not in (has.result or ""):
+        # No package.json means no build. For a hand-written HTML page that is
+        # correct and the tree is served as it stands. For a bundled app whose
+        # package.json is missing from the repository -- BitEstate has a
+        # package-lock.json and no package.json -- the served index.html asks
+        # for /src, nothing renders, and the re-audit refuses to score. Saying
+        # so here beats discovering it three minutes later.
+        bundled = session.exec(
+            f"cd {checkout} && grep -lE 'src=\"/?src/|type=\"module\"' "
+            f"index.html 2>/dev/null | head -1", timeout=60)
+        if (bundled.result or "").strip():
+            return "", ""
         return checkout, ""            # a static site: serve it as it stands
 
     session.exec(f"cd {checkout} && (npm ci --no-audit --no-fund || "
@@ -455,13 +466,9 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         job.lanes = [l.to_dict() for l in lanes]
 
     from agent.recording import Census, Result
+    from agent.axe import AxeResult
 
     results = []
-    #: What the entry page found, kept apart from the rest. The fix loop
-    #: re-audits one URL, so only the entry page's findings can be confirmed
-    #: closed; claiming closure for a page that was never re-tested is worse
-    #: than not fixing it.
-    entry_results = []
     #: Lane recordings arrive already serialised -- they cross a thread
     #: boundary as dicts -- so they are merged as dicts and never converted
     #: again. Putting them back into audit.recordings, which is typed for
@@ -479,15 +486,19 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         for f in lane.findings:
             fields = {k: (tuple(v) if isinstance(v, list) else v)
                       for k, v in f.items() if k != "census"}
+            fields["page"] = lane.url
             r = Result(census=Census(**(f.get("census") or {})), **fields)
             results.append(r)
-            if lane.index == 0:
-                entry_results.append(r)
         short = lane.label or (lane.url.rstrip("/").rsplit("/", 1)[-1] or "home")
         for st, r in lane.recordings.items():
             merged[f"{st} · {short}"] = r
         if not audit.axe and lane.axe.get("ran"):
-            audit.axe = type("A", (), lane.axe)
+            # A real AxeResult, not a class built on the fly. The shim carried
+            # three attributes and the pull request body asks for a fourth,
+            # `overlapping()`, which ended a finished run with an
+            # AttributeError at the very last step.
+            audit.axe = AxeResult(ran=True, version=lane.axe.get("version", ""),
+                                  violations=lane.axe.get("violations") or [])
         job.pages.append({
             "url": (f"{lane.url}  ({lane.label})" if lane.label else lane.url),
             "source": "",
@@ -508,8 +519,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     job.findings = [r.to_dict() for r in results]
     job.recordings = merged
     # The loop reads its work from here, and it was never filled: every run
-    # reached the fix phase with an empty list and nothing to group.
-    audit.results = entry_results
+    # reached the fix phase with an empty list and nothing to group. Every
+    # page's findings go in; each one carries the page it came from, and the
+    # loop re-audits that page to decide whether its patch held.
+    audit.results = results
     first_axe = next((l.axe for l in lanes if l.status == "done" and l.axe.get("ran")),
                      None)
     job.axe = first_axe or {"ran": False, "version": "", "violations": []}
@@ -524,9 +537,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
                    "be re-audited")
     serve_root, build_cmd = prepare_build(audit.session, CHECKOUT)
     if not serve_root:
-        job.say("pr", "This repository produced no page a static server can "
-                      "serve, so a patch could not be re-audited. The findings "
-                      "above stand; no fix was attempted.", "warn")
+        job.say("pr", "This repository has no package.json, so the app cannot be "
+                      "installed or built from a clean clone and a patch could "
+                      "not be re-audited. The findings above stand; no fix was "
+                      "attempted.", "warn")
         return
     job.say("fix", f"Serving {serve_root.rsplit('/', 1)[-1]}/"
                    + (" and rebuilding between patches" if build_cmd else ""))

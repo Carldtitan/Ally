@@ -45,6 +45,36 @@ def _op(fn):
     return weave.op()(fn) if weave else fn
 
 
+#: Serves the patched build, and resolves an unknown path to index.html the
+#: way every single-page app is deployed. Without it a re-audit of
+#: /audit-trail gets a 404 page, which fails no check and therefore reads as
+#: a successful fix.
+SPA_SERVER = """
+import http.server, os, sys, urllib.parse
+
+ROOT = os.path.abspath(sys.argv[1])
+
+
+class H(http.server.SimpleHTTPRequestHandler):
+    def translate_path(self, path):
+        p = urllib.parse.urlparse(path).path
+        full = os.path.join(ROOT, p.lstrip('/'))
+        if os.path.isdir(full):
+            idx = os.path.join(full, 'index.html')
+            if os.path.exists(idx):
+                return idx
+        if os.path.exists(full):
+            return full
+        return os.path.join(ROOT, 'index.html')
+
+    def log_message(self, *a):
+        pass
+
+
+http.server.HTTPServer(('127.0.0.1', 3000), H).serve_forever()
+"""
+
+
 @dataclass
 class FixOutcome:
     """What happened to one group of findings."""
@@ -327,8 +357,13 @@ class FixLoop:
         # three planted instances of each criterion, so a group that fixes one
         # of them would never clear a criterion-level key and no patch could
         # ever be recorded as closing anything.
+        # Scoped to this group's page. `after` comes from re-auditing one
+        # page, so comparing it against failures found on every page would
+        # report each of those as closed without re-testing any of them.
+        page = group.page or self.audit.url
         before = {f"{r.criterion}:{t}" for r in self.audit.results
-                  if r.status == "failed" for t in (r.targets or ("page",))}
+                  if r.status == "failed" and (r.page or self.audit.url) == page
+                  for t in (r.targets or ("page",))}
 
         # Rebuild first. Editing app/page.tsx changes nothing a browser can
         # see until the bundler has run over it, and re-auditing the old build
@@ -340,16 +375,20 @@ class FixLoop:
                                 + (out.result or "").strip()[-200:])
                 return [], []
 
+        # A static file server 404s /audit-trail, because that route exists
+        # only inside the bundle. Every client-side route would re-audit as a
+        # 404 page, which fails no check and would read as a clean fix.
+        self.audit.session.sb.fs.upload_file(SPA_SERVER.encode(), "/tmp/ally_serve.py")
         self.audit.session.sb.process.exec(
-            f"pkill -f 'http.server 3000'; sleep 1; cd {self.serve_root} && "
-            "nohup python3 -m http.server 3000 > /tmp/patched.log 2>&1 & echo ok",
-            timeout=90)
+            "pkill -f 'http.server 3000'; pkill -f ally_serve.py; sleep 1; "
+            f"nohup python3 /tmp/ally_serve.py {self.serve_root} "
+            "> /tmp/patched.log 2>&1 & echo ok", timeout=90)
         time.sleep(2)
 
         after: set[str] = set()
         not_eval: list[str] = []
-        page = self.audit.url.rstrip("/").rsplit("/", 1)[-1] or "index.html"
-        local = f"http://localhost:3000/{page}"
+        from urllib.parse import urlparse
+        local = "http://localhost:3000" + (urlparse(page).path or "/")
 
         from . import checks as checks_mod
         for state in self.audit.states:
