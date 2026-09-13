@@ -21,3 +21,12 @@ build/
 # OS / editor cruft
 .DS_Store
 Thumbs.db
+
+# Holds the W&B API key in a header. Local only.
+.mcp.json
+
+# Generated run artifacts
+artifacts/
+runs/
+*.db
+__pycache__/
