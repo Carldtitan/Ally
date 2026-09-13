@@ -30,10 +30,21 @@ from __future__ import annotations
 
 import json
 
+#: `--disable-gpu` used to be in here, and it made WebGL unavailable. Clearway
+#: builds a renderer on page load, got null back from getContext('webgl'), threw
+#: "Cannot set properties of null (setting 'renderer')", and Next.js replaced the
+#: whole page with its error boundary. Ally then audited that error screen and
+#: reported four passes on it.
+#:
+#: SwiftShader is Chrome's software rasteriser, so WebGL works with no GPU under
+#: Xvfb. Measured on the same page: 70 rendered characters and 2 focusable
+#: elements before, 666 and 11 after.
 CHROME_FLAGS = (
-    "--no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run "
+    "--no-sandbox --disable-dev-shm-usage --no-first-run "
     "--remote-debugging-port=9222 --remote-allow-origins=* "
-    "--window-size=1024,740 --hide-scrollbars"
+    "--window-size=1024,740 --hide-scrollbars "
+    "--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader "
+    "--ignore-gpu-blocklist"
 )
 
 #: How to reach each state, and how to prove it was reached. The assertion is
