@@ -1,0 +1,108 @@
+{
+  "tag": "baseline4",
+  "states": [
+    "loaded",
+    "dialog-open",
+    "menu-open",
+    "tabs-focused"
+  ],
+  "per_criterion": {
+    "2.1.1": {
+      "planted": 3,
+      "found": 2,
+      "reported": 3,
+      "true_positives": 2,
+      "false_positives": 1,
+      "not_evaluated": 0,
+      "ne_reasons": [],
+      "missed": [
+        "preferences, page foot ([role=\"switch\"])"
+      ],
+      "fp_targets": [
+        "body>main>section:nth-of-type(5)>div"
+      ]
+    },
+    "2.1.2": {
+      "planted": 3,
+      "found": 2,
+      "reported": 3,
+      "true_positives": 2,
+      "false_positives": 1,
+      "not_evaluated": 0,
+      "ne_reasons": [],
+      "missed": [
+        "composers tablist ([role=\"tablist\"])"
+      ],
+      "fp_targets": [
+        "#tab-1"
+      ]
+    },
+    "2.4.3": {
+      "planted": 3,
+      "found": 0,
+      "reported": 6,
+      "true_positives": 0,
+      "false_positives": 6,
+      "not_evaluated": 1,
+      "ne_reasons": [
+        "state not reached: the recorder produced no result: return recv(self.sock, bufsize)\n  File \"/home/daytona/.local/lib/python3.14/site-packages/websocket/_socket.py\", line 129, in recv\n    raise WebSocketTimeoutException(\"Connection timed out\")\nwebsocket"
+      ],
+      "missed": [
+        "signup form (#email_item)",
+        "delivery dialog footer (.dialog_form_actions)",
+        "composers tablist ([role=\"tablist\"])"
+      ],
+      "fp_targets": [
+        "#action_output",
+        "#dialog1>div:nth-of-type(1)>div:nth-of-type(1)>label>input",
+        "body>main>section:nth-of-type(1)>button",
+        "#dialog1>div:nth-of-type(1)>div:nth-of-type(2)>label>input",
+        "#tabpanel-1",
+        "body>main>section:nth-of-type(5)>div"
+      ]
+    },
+    "2.4.7": {
+      "planted": 3,
+      "found": 1,
+      "reported": 2,
+      "true_positives": 1,
+      "false_positives": 1,
+      "not_evaluated": 2,
+      "ne_reasons": [
+        "no focus-indicator comparison was captured: the check needs a screenshot before and after each Tab press",
+        "no focus-indicator comparison was captured: the check needs a screenshot before and after each Tab press"
+      ],
+      "missed": [
+        "delivery dialog, city field (.city_input)",
+        "preferences, page foot ([role=\"switch\"])"
+      ],
+      "fp_targets": [
+        "body>main>section:nth-of-type(5)>div"
+      ]
+    },
+    "2.4.11": {
+      "planted": 3,
+      "found": 0,
+      "reported": 8,
+      "true_positives": 0,
+      "false_positives": 8,
+      "not_evaluated": 0,
+      "ne_reasons": [],
+      "missed": [
+        "page foot (#ally-cover-1)",
+        "page head (#ally-cover-2)",
+        "signup form (#ally-cover-3)"
+      ],
+      "fp_targets": [
+        "body>main>section:nth-of-type(1)>button",
+        "#dialog1>div:nth-of-type(1)>div:nth-of-type(1)>label>input",
+        "#dialog1>div:nth-of-type(1)>div:nth-of-type(2)>label>input",
+        "#dialog1>div:nth-of-type(1)>div:nth-of-type(3)>label>input",
+        "#full_name",
+        "#email",
+        "#signup>div:nth-of-type(3)>button",
+        "body>main>section:nth-of-type(5)>div"
+      ]
+    }
+  }
+}
