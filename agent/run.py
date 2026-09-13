@@ -128,8 +128,23 @@ class RemoteTree:
 
 
 class RemoteFile:
+    """One file inside the sandbox, addressed by path.
+
+    Equality and hashing are by path, not identity. apply_plan stages edits in
+    a dict keyed by the file, and `workdir / rel` builds a fresh object each
+    time: without these, three edits to one file became three dict entries,
+    each computed from the ORIGINAL text, and the last write silently discarded
+    the other two. The patch reported as applied and the file was unchanged.
+    """
+
     def __init__(self, session, path: str, rel: str) -> None:
         self.session, self.path, self.rel = session, path, rel
+
+    def __eq__(self, other) -> bool:
+        return isinstance(other, RemoteFile) and other.path == self.path
+
+    def __hash__(self) -> int:
+        return hash(self.path)
 
     @property
     def name(self) -> str:

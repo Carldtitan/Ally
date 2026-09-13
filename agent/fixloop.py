@@ -164,11 +164,24 @@ class FixLoop:
             closed, created = self.reaudit(group)
             # Only this group's own targets count as closed by this patch.
             mine = {f"{group.criterion}:{t}" for t in group.targets}
-            outcome.closed = [c for c in closed if c in mine]
+            outcome.closed = sorted(set(closed) & mine)
             outcome.created = created
-            if outcome.closed and not created:
+
+            # All of them, not any of them. Stopping on the first target to
+            # close reported a group as done while two of its three planted
+            # instances were still open, which is the "stops at the first
+            # occurrence" failure the three-instance benchmark exists to catch.
+            remaining = sorted(mine - set(outcome.closed))
+            if not remaining and not created:
                 outcome.status = "closed"
                 return outcome
+            if remaining:
+                retry_note = ("\n\nThat patch fixed "
+                              f"{len(outcome.closed)} of {len(mine)} instances. "
+                              "These are still failing and must be fixed too, using "
+                              "the same technique: " + ", ".join(
+                                  r.split(":", 1)[1] for r in remaining[:4]) + ".")
+                continue
 
             retry_note = ("\n\nYour previous patch applied cleanly but the re-audit "
                           "still reports the problem. The fix was wrong, not the "
