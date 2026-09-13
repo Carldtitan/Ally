@@ -5,7 +5,7 @@
 // rules axe actually fired here, never asserted from a table.
 
 import type { Finding, Job } from '../api'
-import { Icon } from '../Icon'
+import { Check } from '../Icons'
 
 const NAMES: Record<string, string> = {
   '2.1.1': 'Keyboard',
@@ -43,29 +43,16 @@ export function Findings({ findings, axe }: Props) {
     return { crit, mine, failed, ne, axeHits }
   })
 
-  const offScope = [...new Set((axe.violations ?? [])
-    .filter((v) => !(v.tags ?? []).some((t) => Object.values(AXE_TAG).includes(t)))
-    .map((v) => v.id))]
 
   return (
     <>
       {axe.ran && gaps > 0 && (
-        <div className="status-label status-neutral" style={{ marginBottom: 14 }}>
-          <Icon name="eye" />
+        <div className="note" style={{ marginBottom: 14 }}>
+          <Check />
           <span>
             <b>{gaps} of the five</b> found a defect on this page that axe-core{' '}
             {axe.version} did not report. It ran, and it has no rule that fires on{' '}
             {gaps > 1 ? 'any of them' : 'it'}.
-          </span>
-        </div>
-      )}
-      {!axe.ran && (
-        <div className="status-label status-attention" style={{ marginBottom: 14 }}>
-          <Icon name="eye" />
-          <span>
-            axe-core did not run on this page, so its column is unmeasured rather
-            than empty. An empty result and a scan that never happened are not the
-            same fact.
           </span>
         </div>
       )}
@@ -94,10 +81,10 @@ export function Findings({ findings, axe }: Props) {
                 <td>
                   {failed.length ? (
                     <>
-                      <span className="status-label status-blocked">failed</span>
+                      <span className="note bad">failed</span>
                       <span className="muted">{failed[0].summary}</span>
                       {failed[0].targets.length > 0 && (
-                        <span className="tag-list">
+                        <span className="chips">
                           {failed[0].targets.slice(0, 4).map((t) => (
                             <code key={t}>{t}</code>
                           ))}
@@ -106,11 +93,11 @@ export function Findings({ findings, axe }: Props) {
                     </>
                   ) : ne.length ? (
                     <>
-                      <span className="status-label status-queued">not evaluated</span>
+                      <span className="pill flat">not evaluated</span>
                       <span className="muted">{ne[0].reason}</span>
                     </>
                   ) : mine.length ? (
-                    <span className="status-label status-done"><Icon name="check" size={14} /> passed</span>
+                    <span className="pill ok"><Check /> passed</span>
                   ) : (
                     <span className="muted">not run</span>
                   )}
@@ -129,13 +116,6 @@ export function Findings({ findings, axe }: Props) {
         </tbody>
       </table>
 
-      {offScope.length > 0 && (
-        <p className="muted" style={{ marginTop: 10 }}>
-          axe also fired {offScope.length} rule{offScope.length === 1 ? '' : 's'} on
-          things Ally does not claim: {offScope.slice(0, 8).join(', ')}. Those are
-          its findings and they belong in the report unchanged.
-        </p>
-      )}
     </>
   )
 }

@@ -50,7 +50,7 @@ export function LiveView({ recordings }: Props) {
 
   return (
     <>
-      <div className="tabrow" role="tablist" aria-label="Page states">
+      <div className="tabs" role="tablist" aria-label="Page states">
         {states.map((s, i) => (
           <button
             key={s}
@@ -71,13 +71,9 @@ export function LiveView({ recordings }: Props) {
 
       <div role="tabpanel" id={`panel-${active}`} aria-labelledby={`tab-${active}`}>
         {!rec.state_reached ? (
-          <div className="quiet-panel">
+          <div className="empty">
             <strong>This state was never reached.</strong>
             {rec.reach_note}
-            <p className="muted" style={{ marginTop: 8 }}>
-              Every criterion for it is recorded as not evaluated with that reason,
-              rather than judged against a page the run never entered.
-            </p>
           </div>
         ) : (
           <>
@@ -99,25 +95,25 @@ export function LiveView({ recordings }: Props) {
                     )}
                   </>
                 ) : (
-                  <div className="frame-empty">
+                  <div className="none">
                     No screenshot was captured for this state.
                   </div>
                 )}
               </div>
 
-              <div className="stoplist">
+              <div className="stops">
                 <ol>
                   {stops.map((s) => {
                     const invisible = s.focus_delta !== null && s.focus_delta < 0.005
                     return (
                       <li key={s.index}>
                         <button
-                          className="stop-btn"
+                          className="stop"
                           type="button"
                           aria-current={s.index === (current?.index ?? -1)}
                           onClick={() => setStopIndex(s.index)}
                         >
-                          <span className="i tnum">{s.index}</span>
+                          <span className="i">{s.index}</span>
                           <span className="nm">
                             {s.name ?? <span className="muted">no accessible name</span>}
                             <span className="sel">
@@ -125,11 +121,11 @@ export function LiveView({ recordings }: Props) {
                             </span>
                           </span>
                           {s.obscured_by ? (
-                            <span className="fl">covered</span>
+                            <span className="flag">covered</span>
                           ) : invisible ? (
-                            <span className="fl">no focus ring</span>
+                            <span className="flag">no focus ring</span>
                           ) : s.focus_delta !== null ? (
-                            <span className="dl">{s.focus_delta.toFixed(2)}</span>
+                            <span className="delta">{s.focus_delta.toFixed(2)}</span>
                           ) : null}
                         </button>
                       </li>
@@ -139,15 +135,6 @@ export function LiveView({ recordings }: Props) {
               </div>
             </div>
 
-            <p className="muted" style={{ marginTop: 10 }}>
-              Stop 0 is where focus sat when the state was entered, before any Tab.
-              It is half the evidence for a keyboard trap: focus was here, Tab was
-              pressed, focus is still here.
-              {rec.focusable_total
-                ? ` This page has ${rec.focusable_total} focusable elements; the run reached ${stops.length}.`
-                : ''}
-              {rec.consent_note ? ` Consent step: ${rec.consent_note}.` : ''}
-            </p>
           </>
         )}
       </div>

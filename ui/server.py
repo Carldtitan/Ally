@@ -5,10 +5,6 @@
 Screens:
   /              Start. One URL field. The explorer finds the states.
   /runs/<id>     Run. Live view, two-column comparison, findings, patches.
-  /benchmark     Benchmark. Two runs side by side over the fifteen planted
-                 defects, and the same checks against a real commercial site.
-  /loop          The loop. Stage 4 control and treatment, with the lesson rows
-                 that went into each patch prompt linked to their Weave trace.
 
 Events are notifications, not data. The worker appends a line to the run's
 event log; the browser is told something happened and refetches the run's JSON.
@@ -130,7 +126,7 @@ def page(title: str, body: str, target: str = "") -> bytes:
 <header class="bar">
   <h1><a href="/" style="color:inherit;text-decoration:none">Ally</a></h1>
   <nav aria-label="Screens" style="display:flex;gap:14px;font-size:13px">
-    <a href="/">Start</a><a href="/benchmark">Benchmark</a><a href="/loop">The loop</a>
+    <a href="/">Start</a>
   </nav>
   <span class="target">{target}</span>
 </header>
@@ -509,241 +505,6 @@ these five are what it does not cover.</p>
     return page(f"Run {run_id}", body, target=summary.get("url", ""))
 
 
-def _fixture_matrix(run: dict) -> str:
-    """The five-row matrix. not_evaluated sits in the row with recall, on purpose.
-
-    0/3 recall with 3 not evaluated means the state was never reached, which is
-    not a broken check. Two separate tables let a reader mistake one for the
-    other.
-    """
-    rows = []
-    for r in run["rows"]:
-        if not r.get("run"):
-            rows.append('<tr><th scope="row">' + esc(r["criterion"])
-                        + '</th><td colspan="5" class="skip">not run</td></tr>')
-            continue
-        recall = str(r["found"]) + "/" + str(r["planted"])
-        prec = (str(r["true_positives"]) + "/" + str(r["reported"])
-                if r["reported"] else "&mdash;")
-        full = r["found"] == r["planted"]
-        ne = r["not_evaluated"]
-        axe = '<span class="skip">0 WCAG</span>'
-        if r["axe_best_practice"]:
-            axe += ' <span class="muted-s">+' + str(r["axe_best_practice"]) + " bp</span>"
-        rows.append(
-            '<tr><th scope="row">' + esc(r["criterion"]) + "</th>"
-            + '<td class="' + ("pass" if full else "fail") + '"><b>' + recall + "</b></td>"
-            + '<td class="' + ("skip" if ne else "") + '">' + (str(ne) if ne else "&mdash;") + "</td>"
-            + "<td>" + prec + "</td>"
-            + '<td class="' + ("fail" if r["false_positives"] else "") + '">'
-            + (str(r["false_positives"]) if r["false_positives"] else "&mdash;") + "</td>"
-            + "<td>" + axe + "</td></tr>")
-    tot_full = run["found"] == run["planted"]
-    return (
-        '<table class="matrix">'
-        '<caption class="vh">Recall, not evaluated, precision and axe coverage '
-        'per criterion</caption>'
-        '<thead><tr><th scope="col">Criterion</th><th scope="col">Recall</th>'
-        '<th scope="col">Not eval.</th><th scope="col">Precision</th>'
-        '<th scope="col">False pos.</th><th scope="col">axe-core</th></tr></thead>'
-        "<tbody>" + "".join(rows) + "</tbody>"
-        '<tfoot><tr><th scope="row">Total</th>'
-        '<td class="' + ("pass" if tot_full else "fail") + '"><b>'
-        + str(run["found"]) + "/" + str(run["planted"]) + "</b></td>"
-        '<td class="' + ("skip" if run["not_evaluated"] else "") + '">'
-        + (str(run["not_evaluated"]) if run["not_evaluated"] else "&mdash;") + "</td>"
-        "<td>" + str(run["true_positives"]) + "/" + str(run["reported"]) + "</td>"
-        '<td class="' + ("fail" if run["false_positives"] else "") + '">'
-        + (str(run["false_positives"]) if run["false_positives"] else "&mdash;") + "</td>"
-        '<td><span class="skip">' + str(run["axe_wcag"]) + " WCAG</span></td>"
-        "</tr></tfoot></table>")
-
-
-def _fixture_pair(runs: list) -> str:
-    cols = []
-    for run in runs:
-        good = run["found"] == run["planted"]
-        cols.append(
-            '<div class="col"><div class="col-head">'
-            '<span class="tag">' + esc(run["tag"]) + "</span>"
-            '<span class="big ' + ("good" if good else "bad") + '">'
-            + str(run["found"]) + '<span class="of">/' + str(run["planted"])
-            + "</span></span>"
-            '<span class="lbl">defects found</span></div>'
-            + _fixture_matrix(run)
-            + '<p class="changed"><span class="changed-k">What changed</span>'
-            + esc(run["changed"]) + "</p></div>")
-    return '<div class="pair">' + "".join(cols) + "</div>"
-
-
-def _unknown_pair(runs: list) -> str:
-    cols = []
-    for run in runs:
-        cells = []
-        for r in run["rows"]:
-            statuses = r.get("statuses") or []
-            verdict = ("failed" if "failed" in statuses
-                       else "not evaluated" if "not_evaluated" in statuses
-                       else "passed" if statuses else "&mdash;")
-            klass = ("fail" if verdict == "failed"
-                     else "skip" if verdict == "not evaluated" else "")
-            cells.append(
-                '<tr><th scope="row">' + esc(r["criterion"]) + "</th>"
-                '<td class="' + klass + '">' + verdict + "</td>"
-                "<td>" + str(r["examined"]) + "</td>"
-                "<td>" + (str(r["failed"]) if r["failed"] else "&mdash;") + "</td>"
-                "<td>" + (str(r["undecided"]) if r["undecided"] else "&mdash;") + "</td>"
-                '<td class="skip">' + (str(r["excluded"]) if r["excluded"] else "&mdash;")
-                + "</td></tr>")
-        cols.append(
-            '<div class="col"><div class="col-head">'
-            '<span class="tag">' + esc(run["label"]) + "</span>"
-            '<span class="big bad">' + str(len(run["targets"])) + "</span>"
-            '<span class="lbl">elements named</span></div>'
-            '<p class="verdict-line"><b>' + str(run["correct"]) + " of "
-            + str(run["checked"]) + "</b> survived being opened one by one on the "
-            "live page.</p>"
-            '<table class="matrix">'
-            '<caption class="vh">Element-level census per criterion</caption>'
-            '<thead><tr><th scope="col">Criterion</th><th scope="col">Verdict</th>'
-            '<th scope="col">Examined</th><th scope="col">Failed</th>'
-            '<th scope="col">Undecided</th><th scope="col">Excluded</th></tr></thead>'
-            "<tbody>" + "".join(cells) + "</tbody></table>"
-            '<p class="changed"><span class="changed-k">What changed</span>'
-            + esc(run["changed"]) + "</p></div>")
-    return '<div class="pair">' + "".join(cols) + "</div>"
-
-
-def benchmark_screen() -> bytes:
-    from ui import data
-
-    b = data.benchmark()
-    fixture, unknown = b["fixture"], b["unknown"]
-
-    axe_detail = ""
-    if fixture:
-        items = [(r["criterion"], i) for r in fixture[-1]["rows"]
-                 for i in r.get("axe_items", [])]
-        if items:
-            axe_detail = (
-                '<p class="sub" style="margin-bottom:4px">The two things it did '
-                'report:</p><ul class="tight">'
-                + "".join(
-                    "<li><code>" + esc(i["id"]) + "</code> on " + esc(crit)
-                    + " &mdash; " + esc(i["help"])
-                    + ' <span class="skip">best practice, not a success '
-                      "criterion</span>, across " + str(i["nodes"]) + " node(s)</li>"
-                    for crit, i in items)
-                + "</ul>")
-
-    body = (
-        "<h2>Benchmark</h2>"
-        '<p class="sub">Fifteen defects, five criteria, three instances each, '
-        "planted on pages generated from a clean control app. Two runs side by "
-        "side with what changed between them, because a delta with no cause "
-        "attached means nothing.</p>"
-        "<h3>The fifteen planted defects</h3>"
-        + (_fixture_pair(fixture) if fixture
-           else '<p class="warn">No scored run on disk.</p>')
-        + '<div class="card argument">'
-          '<h3 style="margin-top:0">The axe-core column is the argument</h3>'
-          "<p>axe-core 4.13.0 ran on all five broken pages and on the control "
-          "page. It reported <b>no WCAG violation on any of them</b> &mdash; on "
-          "pages carrying fifteen planted WCAG keyboard defects. That is not a "
-          "criticism of axe. None of these five criteria is in its scope, which "
-          "is the reason this agent exists.</p>"
-        + axe_detail
-        + '<p class="sub">Both are tagged <code>best-practice</code>, axe&rsquo;s '
-          "own label for &ldquo;not a success criterion&rdquo;, and both describe "
-          "something other than the defect: a positive tabindex noticed as a "
-          "tabindex smell rather than as broken focus order, and three cover "
-          "elements noticed as content outside a landmark rather than as "
-          "something drawn over a focused control.</p></div>"
-          "<h3>The same checks against a site nobody built for us</h3>"
-          '<p class="sub">ikea.com, 428 focusable elements. A real site has no '
-          "manifest, so there is no recall to compute. The honest numbers are how "
-          "many elements were named and how many survived inspection.</p>"
-        + (_unknown_pair(unknown) if unknown
-           else '<p class="warn">No unknown-site run on disk.</p>')
-        + '<p class="sub">Every run above is an evaluation in '
-          '<a href="' + esc(b["weave"]) + '">Weave</a>, with the datasets, prompts '
-          "and scorers it used.</p>")
-    return page("Benchmark", body)
-
-
-def loop_screen() -> bytes:
-    from ui import data
-
-    s4 = data.stage4()
-    control, treatment = s4["control"], s4["treatment"]
-    if not (control and treatment):
-        return page("The loop", "<h2>The loop</h2>"
-                                '<p class="warn">Stage 4 has not run here.</p>')
-
-    def arm_card(a: dict) -> str:
-        rows = []
-        for r in a["closed"]:
-            ids = r["lesson_ids"]
-            if ids and r["trace"]:
-                cell = '<a href="' + esc(r["trace"]) + '">' + esc(str(ids)) + "</a>"
-            elif ids:
-                cell = esc(str(ids))
-            else:
-                cell = '<span class="skip">nothing to retrieve</span>'
-            rows.append(
-                "<tr><td>" + str(r["order"]) + "</td>"
-                '<th scope="row">' + esc(r["criterion"]) + "</th>"
-                "<td><code>" + esc(r["component"][:26]) + "</code></td>"
-                '<td class="num ' + ("fail" if r["patch_attempts"] > 1 else "") + '">'
-                + str(r["patch_attempts"]) + "</td>"
-                "<td>" + cell + "</td></tr>")
-        trend = a["trend"] if a["trend"] is not None else 0.0
-        return (
-            '<div class="col"><div class="col-head">'
-            '<span class="tag">' + esc(a["arm"]) + " &middot; lessons "
-            + esc(a["lessons"]) + "</span>"
-            '<span class="big">' + str(a["mean_attempts"]) + "</span>"
-            '<span class="lbl">patch attempts per closed finding</span></div>'
-            '<p class="verdict-line">' + str(a["n_closed"]) + " closed, "
-            + str(a["created"]) + " new findings created, "
-            + str(a["retrieved_total"]) + " prior cases retrieved. Within-run "
-            "trend <b>" + format(trend, "+.2f") + "</b>.</p>"
-            '<table class="matrix loop-table">'
-            '<caption class="vh">Findings in the order they closed</caption>'
-            '<thead><tr><th scope="col">#</th><th scope="col">Criterion</th>'
-            '<th scope="col">Component</th><th scope="col">Attempts</th>'
-            '<th scope="col">Lesson rows in the prompt</th></tr></thead>'
-            "<tbody>" + "".join(rows) + "</tbody></table>"
-            '<p class="changed"><span class="changed-k">Arm</span>'
-            + esc(a["changed"]) + "</p></div>")
-
-    body = (
-        "<h2>The loop</h2>"
-        '<p class="sub">Two loops at different timescales. Inside one run the '
-        "patcher writes a fix, applies it, rebuilds and re-audits, and the "
-        "contradiction comes from a rebuilt page rather than from the "
-        "model&rsquo;s own opinion. Between runs every patch outcome is written "
-        "to a table and queried before the next patch, failures included and "
-        "labelled as failures.</p>"
-        '<div class="card argument">'
-        '<h3 style="margin-top:0">Control and treatment, five pages each</h3>'
-        "<p>Control closed " + str(control["n_closed"]) + " findings at <b>"
-        + str(control["mean_attempts"]) + "</b> patch attempts each. Treatment "
-          "closed " + str(treatment["n_closed"]) + " at <b>"
-        + str(treatment["mean_attempts"]) + "</b>, retrieving "
-        + str(treatment["retrieved_total"]) + " prior cases and creating "
-        + str(treatment["created"]) + " new findings. The control arm is the one "
-          "that makes the comparison mean anything: the same five pages in the "
-          "same order with nothing retrieved.</p>"
-          '<p class="sub"><b>The mechanism is on the record.</b> Every lesson row '
-          "id below links into the Weave trace for the patch call that received "
-          "it, so retrieval can be opened and checked rather than taken on trust. "
-          "286 patch calls carry them.</p></div>"
-          '<div class="pair">' + arm_card(control) + arm_card(treatment)
-        + "</div>")
-    return page("The loop", body)
-
-
 # --------------------------------------------------------------------------
 # Server
 # --------------------------------------------------------------------------
@@ -834,12 +595,6 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "no such job"}, 404)
                 return self._json(saved)
             return self._json(job.to_dict())
-        if p == "/api/benchmark":
-            from ui import data
-            return self._json(data.benchmark())
-        if p == "/api/loop":
-            from ui import data
-            return self._json(data.stage4())
         if p == "/api/audits":
             return self._json({"runs": list_runs()[:25]})
         if p.startswith("/api/audit/"):
@@ -848,10 +603,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "no such audit"}, 404)
             return self._json(run)
 
-        if p == "/benchmark":
-            return self._send(benchmark_screen())
-        if p == "/loop":
-            return self._send(loop_screen())
         if p.startswith("/static/"):
             f = STATIC / p[len("/static/"):]
             if not f.exists():
