@@ -696,7 +696,17 @@ if cands:
         if (r.width === 0 || r.height === 0) return 'not-visible';
         var cs = getComputedStyle(e);
         if (cs.visibility === 'hidden' || cs.display === 'none') return 'not-visible';
-        if (e.tabIndex >= 0) return 'now-focusable';
+        // A focusable element is NOT stale. It used to be dropped here, and on
+        // any site built with real buttons and links that emptied the whole
+        // candidate list: the listener scan finds every <a> and <button> that
+        // carries a click handler, and all of them are focusable. 2.1.1 then
+        // reported "no interactive elements were captured" on every page of
+        // every real site, while the benchmark fixture -- which is full of
+        // unfocusable divs -- kept passing.
+        //
+        // Being focusable is the answer 2.1.1 wants, not a reason to stop
+        // asking: the element is reachable, so it is a pass, and it is counted
+        // as one.
         return 'ok';
       });
     })(__SELS__)
