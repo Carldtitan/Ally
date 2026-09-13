@@ -433,17 +433,19 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     owner, name = parsed
 
     job.say("clone", f"Cloning {owner}/{name}")
+    # weave.init has already run for this job, in `body`. Calling it again
+    # re-initialises the client, which flushes pending tasks -- and the task it
+    # waits on is the still-open `ally_run` call we are inside. The run hung on
+    # "Flushing 1 pending tasks" and never reached the clone.
     audit = Audit(job.url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
-                  states=states or ["loaded"], run_id=job.id)
+                  states=states or ["loaded"], run_id=job.id, use_weave=False)
     try:
         if audit.session.start_desktop():
             job.watch_url = audit.session.watch_url()
     except Exception:
         pass
     if weave is not None:
-        client = getattr(audit, "weave_client", None)
-        if client is not None:
-            job.trace_url = f"https://wandb.ai/{wb_env.bootstrap()['ref']}/weave"
+        job.trace_url = f"https://wandb.ai/{wb_env.bootstrap()['ref']}/weave"
     sha = clone_repo(audit.session, owner, name, job.id, job.branch)
     job.say("clone", f"At {sha}")
 

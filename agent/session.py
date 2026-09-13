@@ -15,6 +15,7 @@ import os
 import json
 import time
 import base64
+import concurrent.futures as _futures
 
 from ally import storage
 from .browser import CHROME_FLAGS, STATES, build_runner
@@ -122,11 +123,26 @@ class Session:
         last = None
         for attempt in range(tries):
             try:
-                return self.sb.process.exec(cmd, timeout=timeout)
+                # A wall-clock guard around the call, not just the sandbox-side
+                # timeout. A run hung for twenty minutes on a clone that had
+                # already finished: the command completed inside the sandbox and
+                # the HTTP response never arrived, and `timeout` is what the
+                # sandbox applies to the command, not what the client waits for.
+                with _futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    fut = pool.submit(self.sb.process.exec, cmd, timeout=timeout)
+                    try:
+                        return fut.result(timeout=timeout + 90)
+                    except _futures.TimeoutError:
+                        # The pool would block on exit waiting for the thread,
+                        # so let it go and count this as a dropped connection.
+                        pool.shutdown(wait=False, cancel_futures=True)
+                        raise TimeoutError(
+                            f"no answer from the sandbox after {timeout + 90}s")
             except Exception as exc:
                 last = exc
                 text = f"{type(exc).__name__}: {exc}"
                 transient = any(w in text for w in (
+                    "no answer from the sandbox",
                     "IncompleteRead", "Connection broken", "RemoteDisconnected",
                     "Connection aborted", "timed out", "ConnectionResetError",
                     # local network, not the sandbox: DNS and pool exhaustion
