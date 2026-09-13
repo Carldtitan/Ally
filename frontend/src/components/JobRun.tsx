@@ -74,10 +74,10 @@ export function JobRun({ job, onUpdate }: Props) {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: '1.15rem' }}>{job.url}</h1>
-        <span className="tag info">{job.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}</span>
-        {job.source && <span className="tag mono">{job.source}</span>}
-        <span className="tag" style={{ marginLeft: 'auto' }}>
+        <h1 className="notion-page-title" style={{ fontSize: '1.35rem' }}>{job.url}</h1>
+        <span className="notion-tag blue">{job.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}</span>
+        {job.source && <span className="notion-tag mono">{job.source}</span>}
+        <span className="notion-tag" style={{ marginLeft: 'auto' }}>
           <IconClock size={12} />
           <span className="tnum">{job.elapsed}s</span>
         </span>
@@ -93,18 +93,18 @@ export function JobRun({ job, onUpdate }: Props) {
       </div>
 
       {job.status === 'failed' && (
-        <div className="callout danger" role="alert" style={{ marginBottom: 14 }}>
+        <div className="notion-callout danger" role="alert" style={{ marginBottom: 14 }}>
           <IconAlert />
           <span><b>The run stopped.</b> {job.error}</span>
         </div>
       )}
       {err && (
-        <div className="callout warn" style={{ marginBottom: 14 }}>
+        <div className="notion-callout warning" style={{ marginBottom: 14 }}>
           <IconAlert /><span>{err}</span>
         </div>
       )}
       {job.status === 'done' && failed.length === 0 && (
-        <div className="callout ok" style={{ marginBottom: 14 }}>
+        <div className="notion-callout success" style={{ marginBottom: 14 }}>
           <IconCheck />
           <span>
             <b>Nothing to fix.</b> Every check that could run reached a verdict and
@@ -114,7 +114,7 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.pr_url && (
-        <div className="callout ok" style={{ marginBottom: 14 }}>
+        <div className="notion-callout success" style={{ marginBottom: 14 }}>
           <IconCheck />
           <span>
             <b>Pull request open.</b>{' '}
@@ -127,13 +127,13 @@ export function JobRun({ job, onUpdate }: Props) {
         </div>
       )}
       {job.pr_blocked && !job.pr_url && (
-        <div className="callout warn" style={{ marginBottom: 14 }}>
+        <div className="notion-callout warning" style={{ marginBottom: 14 }}>
           <IconAlert /><span>{job.pr_blocked}</span>
         </div>
       )}
 
-      <div className="panel">
-        <div className="panel-head">
+      <div className="notion-card">
+        <div className="notion-card-header">
           <h2>What happened</h2>
           {job.trace_url && (
             <a href={job.trace_url} target="_blank" rel="noreferrer" className="hint">
@@ -154,8 +154,8 @@ export function JobRun({ job, onUpdate }: Props) {
       </div>
 
       {Object.keys(job.recordings).length > 0 && (
-        <div className="panel">
-          <div className="panel-head">
+        <div className="notion-card">
+          <div className="notion-card-header">
             <h2>The page, as the keyboard found it</h2>
             <span className="hint">Select a stop to see that moment</span>
           </div>
@@ -164,8 +164,8 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.findings.length > 0 && (
-        <div className="panel">
-          <div className="panel-head">
+        <div className="notion-card">
+          <div className="notion-card-header">
             <h2>Findings</h2>
             <span className="hint">
               {failed.length} failed of {job.findings.length} checks
@@ -176,8 +176,8 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.patches.length > 0 && (
-        <div className="panel">
-          <div className="panel-head">
+        <div className="notion-card">
+          <div className="notion-card-header">
             <h2>Patches</h2>
             <span className="hint">
               {lessons > 0
@@ -185,7 +185,7 @@ export function JobRun({ job, onUpdate }: Props) {
                 : 'First pass: nothing to retrieve yet'}
             </span>
           </div>
-          <table className="grid">
+          <table className="notion-table">
             <thead>
               <tr>
                 <th>Criterion</th><th>Component</th><th>Result</th>
@@ -199,7 +199,7 @@ export function JobRun({ job, onUpdate }: Props) {
                   <td className="mono">{p.criterion}</td>
                   <td className="mono">{p.component}</td>
                   <td>
-                    <span className={`tag ${p.status === 'closed' ? 'passed' : 'skipped'}`}>
+                    <span className={`notion-tag ${p.status === 'closed' ? 'green' : ''}`}>
                       {p.status.replace(/_/g, ' ')}
                     </span>
                   </td>
@@ -220,8 +220,8 @@ export function JobRun({ job, onUpdate }: Props) {
       )}
 
       {job.diff && (
-        <div className="panel">
-          <div className="panel-head">
+        <div className="notion-card">
+          <div className="notion-card-header">
             <h2 style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <IconCode /> The change
             </h2>

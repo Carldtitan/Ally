@@ -168,6 +168,8 @@ class Session:
             page_height=raw.get("page_height", 0),
             focusable_total=raw.get("focusable_total", 0),
             consent_note=raw.get("consent_note", "") or "",
+            menu_triggers=int(raw.get("menu_triggers") or 0),
+            dialog_triggers=int(raw.get("dialog_triggers") or 0),
         )
         for s in raw.get("stops", []):
             png = base64.b64decode(s.pop("png_focused") or "") or None

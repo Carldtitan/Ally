@@ -287,6 +287,10 @@ class Recording:
     focusable_total: int = 0
     #: What the consent-dialog dismissal clicked, or "" if there was nothing.
     consent_note: str = ""
+    #: How many elements say they open a menu or a dialog. The job uses these to
+    #: decide whether to tab those states, instead of asking the user.
+    menu_triggers: int = 0
+    dialog_triggers: int = 0
 
     # -- evidence resolution (SCOPE rule 5.2) ------------------------------
 
@@ -331,4 +335,6 @@ class Recording:
             "excluded": [asdict(e) for e in self.excluded],
             "focusable_total": self.focusable_total,
             "consent_note": self.consent_note,
+            "menu_triggers": self.menu_triggers,
+            "dialog_triggers": self.dialog_triggers,
         }

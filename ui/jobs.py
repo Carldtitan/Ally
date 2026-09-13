@@ -208,7 +208,7 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
 
     job.say("clone", f"Cloning {owner}/{name}")
     audit = Audit(job.url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
-                  states=states, run_id=job.id)
+                  states=states or ["loaded"], run_id=job.id)
     if weave is not None:
         client = getattr(audit, "weave_client", None)
         if client is not None:
@@ -221,8 +221,31 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         raise RuntimeError("no HTML-like file found in the repository to patch")
     job.say("clone", f"The page is backed by {job.source}")
 
-    job.say("audit", f"Tabbing through {len(states)} state(s) of the live page")
-    results = audit.run()
+    # The loaded page always. Whether the menu and dialog passes are worth
+    # running is a question about the page, not a question for whoever pasted the
+    # URL: the recorder reports how many elements declare themselves a menu
+    # trigger or a dialog, and that decides it.
+    job.say("audit", "Tabbing through the loaded page")
+    results = list(audit.run())
+
+    extra = []
+    first = audit.recordings.get("loaded")
+    if first is not None and not states:
+        if getattr(first, "menu_triggers", 0):
+            extra.append("menu-generic")
+        if getattr(first, "dialog_triggers", 0):
+            extra.append("dialog-generic")
+    if extra:
+        job.say("audit", f"The page declares a {' and a '.join(x.split('-')[0] for x in extra)}"
+                         f"; tabbing {'those' if len(extra) > 1 else 'that'} too")
+        more = Audit(job.url, sandbox_id=os.environ.get("ALLY_SANDBOX"),
+                     states=extra, run_id=f"{job.id}-more", use_weave=False,
+                     judge=audit.judge)
+        more.session = audit.session
+        results += list(more.run())
+        audit.recordings.update(more.recordings)
+        audit.results = results
+
     job.findings = [r.to_dict() for r in results]
     job.recordings = {s: r.to_dict() for s, r in audit.recordings.items()}
     job.axe = {"ran": audit.axe.ran if audit.axe else False,
@@ -284,7 +307,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
 
 def start(url: str, repo: str, states: list[str] | None = None,
           want_fix: bool = True, want_pr: bool = True) -> Job:
-    """Begin a job and return immediately. The UI polls it."""
+    """Begin a job and return immediately. The UI polls it.
+
+    `states` empty means "you decide", which is what the UI now sends.
+    """
     job = Job(id=f"job-{uuid.uuid4().hex[:8]}", url=url.strip(), repo=repo.strip())
     with _LOCK:
         JOBS[job.id] = job
@@ -297,9 +323,9 @@ def start(url: str, repo: str, states: list[str] | None = None,
                 weave.init(cfg["ref"])
                 with weave.attributes({"job": job.id, "url": job.url,
                                        "repo": job.repo}):
-                    _run(job, states or ["loaded"], want_fix, want_pr)
+                    _run(job, states or [], want_fix, want_pr)
             else:
-                _run(job, states or ["loaded"], want_fix, want_pr)
+                _run(job, states or [], want_fix, want_pr)
             job.status = "done"
         except Exception as exc:
             job.status = "failed"

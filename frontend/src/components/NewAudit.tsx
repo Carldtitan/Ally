@@ -1,18 +1,15 @@
-// The primary surface. Two fields: where the page lives, where its code lives.
-// Everything else is a default, because a person pasting a URL should not have
-// to tell the agent which file backs it -- the agent works that out from the
-// clone.
+// Two fields and a button.
+//
+// There was a "how much of the page" selector here, offering "the loaded page"
+// or "plus menus and dialogs". That is a question about our internals: whoever
+// pastes a URL does not know or care which page states we tab, and cannot answer
+// it better than we can. The agent looks at the page and decides -- it adds the
+// menu and dialog passes only when the page actually has something that declares
+// itself a menu or a dialog.
 
 import { useState } from 'react'
 import { api, type Job } from '../api'
-import { IconPlay, IconTarget, IconGitBranch, IconAlert } from '../icons'
-
-const STATE_SETS: { id: string; label: string; states: string[]; hint: string }[] = [
-  { id: 'quick', label: 'The loaded page', states: ['loaded'],
-    hint: 'One Tab run. Fastest, and enough for most pages.' },
-  { id: 'generic', label: 'Plus menus and dialogs', states: ['loaded', 'menu-generic', 'dialog-generic'],
-    hint: 'Also opens whatever declares itself a menu or a dialog and tabs that too.' },
-]
+import { IconPlay, IconAlert } from '../icons'
 
 interface Props {
   onStarted: (job: Job) => void
@@ -21,9 +18,6 @@ interface Props {
 export function NewAudit({ onStarted }: Props) {
   const [url, setUrl] = useState('')
   const [repo, setRepo] = useState('')
-  const [depth, setDepth] = useState('quick')
-  const [fix, setFix] = useState(true)
-  const [pr, setPr] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -34,9 +28,7 @@ export function NewAudit({ onStarted }: Props) {
     setError('')
     setBusy(true)
     try {
-      const states = STATE_SETS.find((s) => s.id === depth)!.states
-      const job = await api.startAudit(url.trim(), repo.trim(), states, fix, pr)
-      onStarted(job)
+      onStarted(await api.startAudit(url.trim(), repo.trim(), [], true, true))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The run could not be started.')
     } finally {
@@ -44,23 +36,15 @@ export function NewAudit({ onStarted }: Props) {
     }
   }
 
-  function useExample(exUrl: string, exRepo: string) {
-    setUrl(exUrl)
-    setRepo(exRepo)
-    setError('')
-  }
-
   return (
     <>
-      <h1>Fix the keyboard on a page you already shipped</h1>
-      <p className="lede" style={{ marginTop: 6 }}>
-        Give Ally the live page and the repository behind it. It tabs through the
-        page like a keyboard user, finds what the keyboard cannot reach, edits the
-        source, rebuilds, re-audits to confirm the fix held, and opens a pull
-        request.
+      <h1 className="notion-page-title">Fix the keyboard on a page you already shipped</h1>
+      <p className="notion-page-description" style={{ marginTop: 6 }}>
+        Ally tabs through the live page, edits the source behind it, and opens a
+        pull request.
       </p>
 
-      <form className="panel" style={{ marginTop: 20 }} onSubmit={submit}>
+      <form className="notion-card" style={{ marginTop: 20 }} onSubmit={submit}>
         <div className="audit-form">
           <div className="field">
             <label htmlFor="page-url">Live page</label>
@@ -75,7 +59,6 @@ export function NewAudit({ onStarted }: Props) {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
-            <span className="hint">The page as a visitor sees it, running.</span>
           </div>
 
           <div className="field">
@@ -93,104 +76,51 @@ export function NewAudit({ onStarted }: Props) {
               aria-describedby="repo-hint"
             />
             <span className="hint" id="repo-hint">
-              {repoLooksWrong
-                ? 'Expected github.com/owner/repo.'
-                : 'Ally finds the file that backs the page itself.'}
+              {repoLooksWrong ? 'Expected github.com/owner/repo.' : ' '}
             </span>
           </div>
-        </div>
-
-        <div className="field" style={{ marginTop: 14 }}>
-          <label htmlFor="depth">How much of the page</label>
-          <select
-            id="depth"
-            className="input"
-            value={depth}
-            onChange={(e) => setDepth(e.target.value)}
-            style={{ maxWidth: 320 }}
-          >
-            {STATE_SETS.map((s) => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
-          <span className="hint">{STATE_SETS.find((s) => s.id === depth)!.hint}</span>
         </div>
 
         <div className="audit-actions">
           <button className="btn btn-primary" type="submit" disabled={busy || repoLooksWrong}>
             <IconPlay />
-            {busy ? 'Starting…' : fix ? 'Audit and fix' : 'Audit only'}
+            {busy ? 'Starting…' : 'Audit and fix'}
           </button>
-
-          <div className="audit-toggles">
-            <label className="toggle">
-              <input type="checkbox" checked={fix} onChange={(e) => setFix(e.target.checked)} />
-              Write the fix
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={pr}
-                disabled={!fix}
-                onChange={(e) => setPr(e.target.checked)}
-              />
-              Open a pull request
-            </label>
-          </div>
         </div>
 
         {error && (
-          <div className="callout danger" style={{ marginTop: 14 }} role="alert">
+          <div className="notion-callout danger" style={{ marginTop: 14 }} role="alert">
             <IconAlert />
             <span>{error}</span>
           </div>
         )}
 
         <div className="example-row">
-          <span className="hint">Try it on:</span>
+          <span className="hint">Try:</span>
           <button
             type="button"
             className="example-btn"
-            onClick={() => useExample('https://broken-app.vercel.app/2-1-1.html',
-                                      'https://github.com/Carldtitan/Ally')}
+            onClick={() => {
+              setUrl('https://broken-app.vercel.app/2-1-1.html')
+              setRepo('https://github.com/Carldtitan/Ally')
+              setError('')
+            }}
           >
-            a page with known keyboard defects
+            a page with known defects
           </button>
           <button
             type="button"
             className="example-btn"
-            onClick={() => useExample('https://ally-clean-app.vercel.app/',
-                                      'https://github.com/Carldtitan/Ally')}
+            onClick={() => {
+              setUrl('https://ally-clean-app.vercel.app/')
+              setRepo('https://github.com/Carldtitan/Ally')
+              setError('')
+            }}
           >
             a page with none
           </button>
         </div>
       </form>
-
-      <div className="pair" style={{ marginTop: 18 }}>
-        <div className="panel">
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <IconTarget /> What it looks for
-          </h3>
-          <p className="hint" style={{ marginTop: 7 }}>
-            Five WCAG criteria that need a keyboard rather than a parser: whether
-            every control can be reached, whether focus can get stuck, whether the
-            Tab order follows the page, whether the focus indicator is visible,
-            and whether anything is drawn over the focused element.
-          </p>
-        </div>
-        <div className="panel">
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <IconGitBranch /> What it changes
-          </h3>
-          <p className="hint" style={{ marginTop: 7 }}>
-            Literal find-and-replace edits in your source, applied all-or-nothing.
-            After each patch the page is rebuilt and re-audited, so a fix that did
-            not hold is retried with the new recording in hand rather than
-            reported as done.
-          </p>
-        </div>
-      </div>
     </>
   )
 }

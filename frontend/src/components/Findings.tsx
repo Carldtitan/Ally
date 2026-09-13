@@ -50,7 +50,7 @@ export function Findings({ findings, axe }: Props) {
   return (
     <>
       {axe.ran && gaps > 0 && (
-        <div className="callout info" style={{ marginBottom: 14 }}>
+        <div className="notion-callout info" style={{ marginBottom: 14 }}>
           <IconInfo />
           <span>
             <b>{gaps} of the five</b> found a defect on this page that axe-core{' '}
@@ -60,7 +60,7 @@ export function Findings({ findings, axe }: Props) {
         </div>
       )}
       {!axe.ran && (
-        <div className="callout warn" style={{ marginBottom: 14 }}>
+        <div className="notion-callout warning" style={{ marginBottom: 14 }}>
           <IconInfo />
           <span>
             axe-core did not run on this page, so its column is unmeasured rather
@@ -70,7 +70,7 @@ export function Findings({ findings, axe }: Props) {
         </div>
       )}
 
-      <table className="grid">
+      <table className="notion-table">
         <caption className="vh">Findings per criterion, with axe-core beside them</caption>
         <thead>
           <tr>
@@ -94,7 +94,7 @@ export function Findings({ findings, axe }: Props) {
                 <td>
                   {failed.length ? (
                     <>
-                      <span className="tag failed">failed</span>
+                      <span className="notion-tag red">failed</span>
                       <span className="finding-body">{failed[0].summary}</span>
                       {failed[0].targets.length > 0 && (
                         <span className="finding-targets">
@@ -106,11 +106,11 @@ export function Findings({ findings, axe }: Props) {
                     </>
                   ) : ne.length ? (
                     <>
-                      <span className="tag skipped">not evaluated</span>
+                      <span className="notion-tag">not evaluated</span>
                       <span className="finding-body">{ne[0].reason}</span>
                     </>
                   ) : mine.length ? (
-                    <span className="tag passed"><IconCheck size={11} /> passed</span>
+                    <span className="notion-tag green"><IconCheck size={11} /> passed</span>
                   ) : (
                     <span className="hint">not run</span>
                   )}

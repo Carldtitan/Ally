@@ -14,7 +14,7 @@ export function Benchmark() {
     api.benchmark().then(setData).catch((e) => setErr(String(e.message ?? e)))
   }, [])
 
-  if (err) return <div className="callout danger"><IconInfo /><span>{err}</span></div>
+  if (err) return <div className="notion-callout danger"><IconInfo /><span>{err}</span></div>
   if (!data) return <p className="hint">Reading the scored runs…</p>
 
   const axeItems = data.fixture.length
@@ -24,8 +24,8 @@ export function Benchmark() {
 
   return (
     <>
-      <h1>Benchmark</h1>
-      <p className="lede" style={{ marginTop: 6 }}>
+      <h1 className="notion-page-title">Benchmark</h1>
+      <p className="notion-page-description" style={{ marginTop: 6 }}>
         Fifteen defects, five criteria, three instances each, planted on pages
         generated from a clean control app. Two runs side by side, with what changed
         between them.
@@ -33,15 +33,15 @@ export function Benchmark() {
 
       <div className="pair" style={{ marginTop: 18 }}>
         {data.fixture.map((run) => (
-          <div className="panel" key={run.tag}>
-            <span className="tag mono">{run.tag}</span>
-            <div className={`stat ${run.found === run.planted ? 'good' : 'bad'}`}
+          <div className="notion-card" key={run.tag}>
+            <span className="notion-tag mono">{run.tag}</span>
+            <div className={`stat-value ${run.found === run.planted ? 'good' : 'bad'}`}
                  style={{ marginTop: 8 }}>
               {run.found}<span className="of">/{run.planted}</span>
             </div>
             <span className="stat-label">defects found</span>
 
-            <table className="grid" style={{ marginTop: 12 }}>
+            <table className="notion-table" style={{ marginTop: 12 }}>
               <thead>
                 <tr>
                   <th>Criterion</th><th className="num">Recall</th>
@@ -78,7 +78,7 @@ export function Benchmark() {
         ))}
       </div>
 
-      <div className="panel">
+      <div className="notion-card">
         <h2>axe-core ran on every one of these pages</h2>
         <p style={{ marginTop: 7, fontSize: '0.86rem' }}>
           It reported <b>no WCAG violation on any of them</b>, on pages carrying
@@ -91,7 +91,7 @@ export function Benchmark() {
             {axeItems.map((i, n) => (
               <li key={n}>
                 <code className="mono">{i.id}</code> on {i.crit} &mdash; {i.help}{' '}
-                <span className="tag skipped">best practice, not a success criterion</span>
+                <span className="notion-tag">best practice, not a success criterion</span>
               </li>
             ))}
           </ul>
@@ -101,18 +101,18 @@ export function Benchmark() {
       {data.unknown.length > 0 && (
         <>
           <h2 style={{ marginTop: 26 }}>The same checks on a site nobody built for us</h2>
-          <p className="lede" style={{ marginTop: 6 }}>
+          <p className="notion-page-description" style={{ marginTop: 6 }}>
             {data.unknown[0].url} &mdash; a real commercial page. There is no
             manifest on a live site, so there is no recall to compute. The numbers
             are how many elements were named and how much of the page was examined.
           </p>
           <div className="pair" style={{ marginTop: 14 }}>
             {data.unknown.map((run) => (
-              <div className="panel" key={run.key}>
-                <span className="tag mono">{run.label}</span>
-                <div className="stat" style={{ marginTop: 8 }}>{run.targets.length}</div>
+              <div className="notion-card" key={run.key}>
+                <span className="notion-tag mono">{run.label}</span>
+                <div className="stat-value" style={{ marginTop: 8 }}>{run.targets.length}</div>
                 <span className="stat-label">elements named</span>
-                <table className="grid" style={{ marginTop: 12 }}>
+                <table className="notion-table" style={{ marginTop: 12 }}>
                   <thead>
                     <tr>
                       <th>Criterion</th><th className="num">Examined</th>
@@ -157,15 +157,15 @@ export function Loop() {
     api.loop().then(setData).catch((e) => setErr(String(e.message ?? e)))
   }, [])
 
-  if (err) return <div className="callout danger"><IconInfo /><span>{err}</span></div>
+  if (err) return <div className="notion-callout danger"><IconInfo /><span>{err}</span></div>
   if (!data) return <p className="hint">Reading the loop runs…</p>
 
   const arms = [data.control, data.treatment].filter(Boolean) as NonNullable<typeof data.control>[]
 
   return (
     <>
-      <h1>The loop</h1>
-      <p className="lede" style={{ marginTop: 6 }}>
+      <h1 className="notion-page-title">The loop</h1>
+      <p className="notion-page-description" style={{ marginTop: 6 }}>
         Inside one run the patcher writes a fix, applies it, rebuilds and
         re-audits, so the contradiction comes from a rebuilt page rather than from
         the model&rsquo;s own opinion. Between runs every patch outcome is written
@@ -174,7 +174,7 @@ export function Loop() {
       </p>
 
       {arms.length === 2 && (
-        <div className="panel" style={{ marginTop: 18 }}>
+        <div className="notion-card" style={{ marginTop: 18 }}>
           <h2>Control and treatment, five pages each</h2>
           <p style={{ marginTop: 7, fontSize: '0.86rem' }}>
             Control closed {arms[0].n_closed} findings at <b>{arms[0].mean_attempts}</b>{' '}
@@ -193,11 +193,11 @@ export function Loop() {
 
       <div className="pair" style={{ marginTop: 14 }}>
         {arms.map((a) => (
-          <div className="panel" key={a.tag}>
-            <span className="tag mono">{a.arm} · lessons {a.lessons}</span>
-            <div className="stat" style={{ marginTop: 8 }}>{a.mean_attempts ?? '—'}</div>
+          <div className="notion-card" key={a.tag}>
+            <span className="notion-tag mono">{a.arm} · lessons {a.lessons}</span>
+            <div className="stat-value" style={{ marginTop: 8 }}>{a.mean_attempts ?? '—'}</div>
             <span className="stat-label">patch attempts per closed finding</span>
-            <table className="grid" style={{ marginTop: 12 }}>
+            <table className="notion-table" style={{ marginTop: 12 }}>
               <thead>
                 <tr>
                   <th className="num">#</th><th>Criterion</th><th>Component</th>

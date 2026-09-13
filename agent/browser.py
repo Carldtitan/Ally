@@ -699,6 +699,14 @@ print("RESULT " + json.dumps({
     "truncated": truncated,
     "page_height": val("document.documentElement.scrollHeight") or 0,
     "consent_note": consent,
+    # What the page declares about itself, so the caller can decide whether the
+    # menu and dialog passes are worth running at all. Asking a person which
+    # states to tab is asking them a question about our internals.
+    "menu_triggers": val("document.querySelectorAll('[aria-expanded=\"false\"]"
+                         "[aria-haspopup],[aria-expanded=\"false\"][aria-controls]')"
+                         ".length") or 0,
+    "dialog_triggers": val("document.querySelectorAll('[aria-haspopup=\"dialog\"],"
+                           "dialog,[role=\"dialog\"]').length") or 0,
     # Fix 5. The denominator for coverage: what a Tab sequence through this page
     # should have been able to reach. tabindex="-1" is excluded because it is
     # deliberately out of the sequence.

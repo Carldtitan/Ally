@@ -63,7 +63,7 @@ export default function App() {
             <span className="notion-breadcrumbs-item">{CRUMB[tab]}</span>
           </div>
           {job && (job.status === 'running' || job.status === 'queued') && (
-            <span className="tag info">
+            <span className="notion-tag blue">
               running · {job.phase}
             </span>
           )}
@@ -77,9 +77,9 @@ export default function App() {
               <JobRun job={job} onUpdate={setJob} />
             ) : (
               <>
-                <h1>Past runs</h1>
+                <h1 className="notion-page-title">Past runs</h1>
                 {pastErr && (
-                  <div className="callout danger" style={{ marginTop: 12 }}>
+                  <div className="notion-callout danger" style={{ marginTop: 12 }}>
                     <IconInfo /><span>{pastErr}</span>
                   </div>
                 )}
@@ -89,7 +89,7 @@ export default function App() {
                     Start one from New audit and it will appear here as it works.
                   </div>
                 ) : (
-                  <table className="grid" style={{ marginTop: 16 }}>
+                  <table className="notion-table" style={{ marginTop: 16 }}>
                     <thead>
                       <tr>
                         <th>Page</th><th>Repository</th><th>State</th>
@@ -104,8 +104,8 @@ export default function App() {
                             {p.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}
                           </td>
                           <td>
-                            <span className={`tag ${p.status === 'done' ? 'passed'
-                              : p.status === 'failed' ? 'failed' : 'info'}`}>
+                            <span className={`notion-tag ${p.status === 'done' ? 'green'
+                              : p.status === 'failed' ? 'red' : 'blue'}`}>
                               {p.status === 'running' ? `${p.status} · ${p.phase}` : p.status}
                             </span>
                           </td>
