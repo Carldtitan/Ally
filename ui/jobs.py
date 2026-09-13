@@ -271,6 +271,49 @@ def find_pages(session, url: str, limit: int = MAX_PAGES) -> list:
 # The phases
 # --------------------------------------------------------------------------
 
+class BuildFailed(RuntimeError):
+    """The repository could not be built here, with what the build said."""
+
+
+#: The sandbox has 1 GiB and reports the host's 64 cores, so a bundler that
+#: sizes its worker pool from `nproc` starts 64 workers inside a gibibyte and
+#: the kernel kills it. Measured on BitEstate: `npm run build` was Killed with
+#: exit 137, and the same build with one worker finished in 9 seconds.
+BUILD_ENV = ("PARCEL_WORKERS=1 JOBS=1 UV_THREADPOOL_SIZE=2 "
+             "NODE_OPTIONS=--max-old-space-size=768")
+
+
+def free_memory_for_build(session) -> str:
+    """Stop the browser so the bundler can have the memory.
+
+    The sandbox has 1 GiB and the audit session is holding a Chromium with a
+    software rasteriser, plus Xvfb, xfce4, x11vnc and noVNC. A build that
+    finishes in nine seconds in an empty sandbox is killed in this one. The
+    re-audit restarts the browser itself, so stopping it here costs nothing.
+    """
+    # `free` reports the HOST's memory inside a Daytona sandbox, the same way
+    # nproc reports the host's cores. The cgroup is the only honest number.
+    probe = ("awk '{printf \"%d\", $1/1048576}' /sys/fs/cgroup/memory.current "
+             "2>/dev/null; echo -n ' of '; "
+             "awk '{printf \"%d\", $1/1048576}' /sys/fs/cgroup/memory.max 2>/dev/null")
+    before = session.exec(probe, timeout=60)
+    session.exec("pkill -f chromium; sleep 2; true", timeout=120)
+    session._ready = False          # so the next record() starts it again
+
+    # The desktop as well. Killing only the browser left 370MB of 1024 in use
+    # and the build was still killed; Xvfb, xfce4, x11vnc and noVNC are the
+    # rest of it. Both come back for the re-audit, which starts them itself.
+    try:
+        session.sb.computer_use.stop()
+        session._desktop = False
+    except Exception:
+        pass
+    after = session.exec(probe, timeout=60)
+    return (f"memory in use {(before.result or '?').strip()}MB, "
+            f"{(after.result or '?').strip()}MB with the browser and desktop "
+            f"stopped for the build")
+
+
 @_op
 def prepare_build(session, checkout: str) -> tuple[str, str]:
     """Install and build the checkout once. Returns (what to serve, how to rebuild).
@@ -299,18 +342,27 @@ def prepare_build(session, checkout: str) -> tuple[str, str]:
             return "", ""
         return checkout, ""            # a static site: serve it as it stands
 
-    session.exec(f"cd {checkout} && (npm ci --no-audit --no-fund || "
-                 f"npm install --no-audit --no-fund) 2>&1 | tail -3", timeout=1500)
-    build = f"cd {checkout} && npm run build"
-    session.exec(f"{build} 2>&1 | tail -4", timeout=1500)
+    session.exec(f"cd {checkout} && ({BUILD_ENV} npm ci --no-audit --no-fund || "
+                 f"{BUILD_ENV} npm install --no-audit --no-fund) "
+                 f"> /tmp/npm-install.log 2>&1; tail -3 /tmp/npm-install.log",
+                 timeout=1500)
+    build = f"cd {checkout} && {BUILD_ENV} npm run build"
+    out = session.exec(f"{build} > /tmp/build.log 2>&1; echo EXIT:$?; tail -4 /tmp/build.log",
+                       timeout=1500)
+    text = out.result or ""
+    if "EXIT:0" not in text:
+        why = "ran out of memory" if "EXIT:137" in text else "failed"
+        raise BuildFailed(f"the build {why}: " + text.replace("EXIT:", "exit ")[-300:])
+
     found = session.exec(
-        f"cd {checkout} && for d in dist out build public .; do "
+        f"cd {checkout} && for d in dist out build public; do "
         f'test -f "$d/index.html" && echo "$d" && break; done', timeout=60)
-    out = [l.strip() for l in (found.result or "").splitlines() if l.strip()]
-    if not out:
-        return "", ""
-    d = out[-1]
-    return (checkout if d == "." else f"{checkout}/{d}"), build
+    lines = [l.strip() for l in (found.result or "").splitlines() if l.strip()]
+    # No build output and a build that claimed success means this repository is
+    # served from its source tree, which is only true of a hand-written page.
+    if not lines:
+        return checkout, ""
+    return f"{checkout}/{lines[-1]}", build
 
 
 @_op
@@ -338,6 +390,33 @@ def _can_push(owner: str, name: str) -> bool:
         return (r.stdout or "").strip() == "true"
     except Exception:
         return False
+
+
+@_op
+def ally_run(job_id: str, url: str, repo: str, branch: str,
+             states: list, fix: bool, pr: bool) -> dict:
+    """One run, as one trace.
+
+    Everything the job does is already an op -- clone, discover, build, patch,
+    re-audit, pull request -- but each of them was a root call, so a run was
+    two hundred unrelated rows in Weave instead of one tree. The arguments are
+    primitives and the return is a summary, so the trace carries what a reader
+    wants without serialising the whole mutable Job on either end.
+    """
+    job = get(job_id)
+    if job is None:
+        raise RuntimeError(f"no such job {job_id}")
+    _run(job, states or [], fix, pr)
+    failed = [f for f in job.findings if f.get("status") == "failed"]
+    return {
+        "pages": len(job.pages),
+        "checks": len(job.findings),
+        "findings": len(failed),
+        "closed": sum(p.get("closed", 0) for p in job.patches),
+        "created": sum(p.get("created", 0) for p in job.patches),
+        "pr_url": job.pr_url,
+        "source": job.source,
+    }
 
 
 def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
@@ -441,7 +520,8 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         job.say("audit", f"[{i}] {msg}", level)
         job.lanes = [l.to_dict() for l in lanes]
 
-    run_lanes(lanes, states or ["loaded"], audit.judge, say)
+    run_lanes(lanes, states or ["loaded"], audit.judge, say,
+              tag={"job": job.id, "repo": job.repo})
     job.lanes = [l.to_dict() for l in lanes]
 
     # Different URL, same screen. BitEstate serves Home at both "/" and "/home",
@@ -474,7 +554,8 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
             replacements.append(Lane(index=lane.index, url=nxt))
         if not replacements:
             break
-        run_lanes(replacements, states or ["loaded"], audit.judge, say)
+        run_lanes(replacements, states or ["loaded"], audit.judge, say,
+                  tag={"job": job.id, "repo": job.repo})
         for r in replacements:
             for i, lane in enumerate(lanes):
                 if lane.index == r.index:
@@ -555,12 +636,17 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     # rows for the criterion go into the next prompt.
     job.say("fix", "Installing and building the repository so the patch can "
                    "be re-audited")
-    serve_root, build_cmd = prepare_build(audit.session, CHECKOUT)
+    job.say("fix", free_memory_for_build(audit.session))
+    try:
+        serve_root, build_cmd = prepare_build(audit.session, CHECKOUT)
+    except BuildFailed as exc:
+        job.say("pr", f"{exc} The findings above stand; no fix was attempted.",
+                "warn")
+        return
     if not serve_root:
-        job.say("pr", "This repository has no package.json, so the app cannot be "
-                      "installed or built from a clean clone and a patch could "
-                      "not be re-audited. The findings above stand; no fix was "
-                      "attempted.", "warn")
+        job.say("pr", "The repository has no package.json, so it cannot be built "
+                      "from a clean clone and a patch could not be re-audited. "
+                      "The findings above stand; no fix was attempted.", "warn")
         return
     job.say("fix", f"Serving {serve_root.rsplit('/', 1)[-1]}/"
                    + (" and rebuilding between patches" if build_cmd else ""))
@@ -634,7 +720,8 @@ def start(url: str, repo: str, states: list[str] | None = None,
                 weave.init(cfg["ref"])
                 with weave.attributes({"job": job.id, "url": job.url,
                                        "repo": job.repo}):
-                    _run(job, states or [], want_fix, want_pr)
+                    ally_run(job.id, job.url, job.repo, job.branch,
+                             states or [], want_fix, want_pr)
             else:
                 _run(job, states or [], want_fix, want_pr)
             job.status = "done"

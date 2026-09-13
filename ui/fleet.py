@@ -19,6 +19,7 @@ import os
 import sys
 import pathlib
 import threading
+import contextlib
 from dataclasses import dataclass, field
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -85,7 +86,7 @@ def _session_for(index: int, reuse: str | None):
 
 
 def run_lanes(lanes: list[Lane], states: list[str], judge,
-              say) -> list[Lane]:
+              say, tag: dict | None = None) -> list[Lane]:
     """Drive every lane at once, each in its own sandbox. Blocks until all end.
 
     `say(lane_index, message, level)` is called as things happen, so the caller
@@ -98,6 +99,19 @@ def run_lanes(lanes: list[Lane], states: list[str], judge,
 
     def drive(lane: Lane) -> None:
         lane.status = "running"
+        session = None
+        # A lane runs in its own thread, so its checks cannot be children of
+        # the run's trace. Tagging them is the next best thing: every call a
+        # lane makes carries the job it belongs to and the page it was looking
+        # at, so a run's work can still be collected in one view.
+        ctx = contextlib.nullcontext()
+        if weave is not None:
+            ctx = weave.attributes({**(tag or {}), "lane": lane.index,
+                                    "page": lane.url})
+        with ctx:
+            _drive(lane)
+
+    def _drive(lane: Lane) -> None:
         session = None
         try:
             session, sid = _session_for(lane.index, reuse)

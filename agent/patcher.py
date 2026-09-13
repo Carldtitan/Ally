@@ -325,6 +325,37 @@ def request_edits(client, criterion: str, component: str, findings_text: str,
     return json.loads(body)
 
 
+def resolve_find(source: str, find: str) -> str | None:
+    """The real bytes in `source` that `find` means, or None.
+
+    Exact first. Failing that, whitespace is treated as elastic: each run of
+    whitespace in `find` matches any run of whitespace in the file. A model
+    reproducing an indented JSX block gets the tokens right and the indentation
+    wrong, and that is a transcription slip, not a different edit.
+
+    Returns None unless the result is unambiguous. Uniqueness is what makes an
+    edit safe to apply, and a fuzzier match must not buy itself an ambiguous
+    one: a pattern that resolves to two places is refused exactly as a literal
+    that appears twice is.
+    """
+    if source.count(find) == 1:
+        return find
+    stripped = find.strip()
+    if stripped and source.count(stripped) == 1:
+        return stripped
+    if not stripped:
+        return None
+
+    parts = [re.escape(p) for p in stripped.split()]
+    if not parts:
+        return None
+    pattern = r"\s+".join(parts)
+    hits = list(re.finditer(pattern, source))
+    if len(hits) != 1:
+        return None
+    return hits[0].group(0)
+
+
 def locate_context(text: str, wanted: str, width: int = 400) -> str:
     """What is really in the file near where the model thought its text was.
 

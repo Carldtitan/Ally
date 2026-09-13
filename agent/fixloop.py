@@ -31,7 +31,8 @@ from dataclasses import dataclass, field
 from ally import db
 from .patcher import (MAX_LOCATE_ATTEMPTS, MAX_PATCH_ATTEMPTS, ApplyOutcome,
                       Edit, Group, PatchPlan, apply_plan, group_findings,
-                      locate_context, read_plan, request_edits, write_plan)
+                      locate_context, read_plan, request_edits, resolve_find,
+                      write_plan)
 from .lessons import Lesson, describe_fix, group_shape
 from .recording import Result, not_evaluated
 
@@ -319,7 +320,19 @@ class FixLoop:
                 retry_note = "\n\nYour previous response contained no edits."
                 continue
 
-            bad = [e for e in edits if source.count(e.find) != 1]
+            # Resolve each `find` against the file before judging it. A model
+            # that got the tokens right and the indentation wrong has still
+            # named the right place, and rewriting `find` to the real bytes
+            # keeps the patch a literal replacement.
+            resolved, bad = [], []
+            for e in edits:
+                real = resolve_find(source, e.find)
+                if real is None:
+                    bad.append(e)
+                else:
+                    resolved.append(Edit(find=real, replace=e.replace))
+            if not bad:
+                edits = resolved
             if bad:
                 e = bad[0]
                 n = source.count(e.find)
@@ -369,10 +382,18 @@ class FixLoop:
         # see until the bundler has run over it, and re-auditing the old build
         # would measure the patch as having done nothing.
         if self.build:
-            out = self.audit.session.exec(f"{self.build} 2>&1 | tail -4", timeout=1200)
-            if (out.exit_code or 0) != 0:
-                self.blocked = ("the patched tree did not build: "
-                                + (out.result or "").strip()[-200:])
+            # Piping into `tail` hands back tail's exit code, which is always
+            # zero. A build that was killed for running out of memory reported
+            # success, the half-written output was served, and the re-audit
+            # scored a page that had never rendered.
+            out = self.audit.session.exec(
+                f"{self.build} > /tmp/build.log 2>&1; echo EXIT:$?; tail -5 /tmp/build.log",
+                timeout=1200)
+            text = (out.result or "").strip()
+            if "EXIT:0" not in text:
+                why = "ran out of memory" if "EXIT:137" in text else "failed"
+                self.blocked = (f"the patched tree {why} while building, so the "
+                                "patch could not be re-audited: " + text[-200:])
                 return [], []
 
         # A static file server 404s /audit-trail, because that route exists

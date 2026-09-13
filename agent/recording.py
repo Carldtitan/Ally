@@ -319,7 +319,12 @@ class Recording:
             return f"the browser could not open it: {self.nav_error}"
         if self.http_status and not (200 <= self.http_status < 400):
             return f"the server answered {self.http_status}"
-        if self.text_length and self.text_length < 120:
+        if self.text_length < 120:
+            # `if self.text_length and ...` used to guard this, so a page that
+            # rendered zero characters -- the worst case there is -- was waved
+            # through as if it had loaded. A re-audit of a page that never
+            # rendered then reported two findings closed, because a blank page
+            # fails no check.
             return (f"only {self.text_length} characters rendered, which is a "
                     "block page or an error, not a page to audit")
         return ""
