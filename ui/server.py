@@ -35,6 +35,7 @@ from urllib.parse import urlparse, parse_qs
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATIC = pathlib.Path(__file__).resolve().parent / "static"
 ARTIFACTS = ROOT / "artifacts"
+DIST = ROOT / "frontend" / "dist"
 RUNS = ROOT / "runs"
 
 
@@ -747,8 +748,47 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        # The Vite dev server runs on another port during development, so the
+        # API has to say it is allowed to be called from there. In production
+        # the built files are served from this same origin and this is a no-op.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
         self.wfile.write(body)
+
+    def _json(self, obj, code=200) -> None:
+        self._send(json.dumps(obj).encode(), "application/json", code)
+
+    def do_OPTIONS(self) -> None:
+        self._send(b"", "text/plain", 204)
+
+    def do_POST(self) -> None:
+        u = urlparse(self.path)
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except Exception:
+            return self._json({"error": "the request body was not JSON"}, 400)
+
+        if u.path == "/api/audit":
+            from ui import jobs
+
+            url = (payload.get("url") or "").strip()
+            repo = (payload.get("repo") or "").strip()
+            if not url:
+                return self._json({"error": "A page address is required."}, 400)
+            if not jobs.parse_repo(repo):
+                return self._json(
+                    {"error": "That does not look like a GitHub repository "
+                              "address. Expected github.com/owner/name."}, 400)
+            states = payload.get("states") or ["loaded"]
+            job = jobs.start(url, repo, states=states,
+                             want_fix=bool(payload.get("fix", True)),
+                             want_pr=bool(payload.get("pr", True)))
+            return self._json(job.to_dict(), 202)
+
+        return self._json({"error": "no such endpoint"}, 404)
 
     def do_GET(self) -> None:
         u = urlparse(self.path)
@@ -756,10 +796,49 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/":
             return self._send(start_screen())
+        # ---- JSON API, which the React frontend uses --------------------
+        if p == "/api/job":
+            from ui import jobs
+            return self._json({"jobs": jobs.recent()})
+        if p.startswith("/api/job/"):
+            from ui import jobs
+            job = jobs.get(p[len("/api/job/"):])
+            if job is None:
+                saved = load_run(p[len("/api/job/"):])
+                if saved is None:
+                    return self._json({"error": "no such job"}, 404)
+                return self._json(saved)
+            return self._json(job.to_dict())
+        if p == "/api/benchmark":
+            from ui import data
+            return self._json(data.benchmark())
+        if p == "/api/loop":
+            from ui import data
+            return self._json(data.stage4())
+        if p == "/api/audits":
+            return self._json({"runs": list_runs()[:25]})
+        if p.startswith("/api/audit/"):
+            run = load_run(p[len("/api/audit/"):])
+            if run is None:
+                return self._json({"error": "no such audit"}, 404)
+            return self._json(run)
+
         if p == "/benchmark":
             return self._send(benchmark_screen())
         if p == "/loop":
             return self._send(loop_screen())
+        # The built React app, when it has been built. Any unknown path falls
+        # through to index.html so client-side routes survive a reload.
+        if DIST.exists():
+            rel = p.lstrip("/") or "index.html"
+            f = DIST / rel
+            if not f.is_file() and not p.startswith(("/api/", "/shot/", "/static/",
+                                                     "/events")):
+                f = DIST / "index.html"
+            if f.is_file():
+                ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+                return self._send(f.read_bytes(), ctype)
+
         if p.startswith("/static/"):
             f = STATIC / p[len("/static/"):]
             if not f.exists():
