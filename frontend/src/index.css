@@ -388,12 +388,21 @@ table.grid tr.dim td { color: var(--text-secondary); }
   background: var(--inset-bg); box-shadow: var(--shadow-sm);
 }
 .frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* The box lands on the element rather than gliding to it. Animating left, top,
+   width and height thrashes layout, and for a focus indicator a sliding box is
+   worse than a decisive one: it leaves a moment where two places look focused.
+   It fades in instead, on compositor properties only. */
 .frame .box {
   position: absolute; border: 2px solid var(--primary); border-radius: 2px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 0 5px var(--primary-tint);
   pointer-events: none;
-  transition: left var(--slow), top var(--slow), width var(--slow), height var(--slow);
+  animation: box-land 200ms var(--ease);
 }
+@keyframes box-land {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .frame .box { animation: none; } }
 .frame .box.covered {
   border-color: var(--danger-text);
   background: repeating-linear-gradient(45deg,
