@@ -33,7 +33,7 @@
       <!-- Dialog (Modal) Pattern: content/patterns/dialog-modal/examples/dialog.html -->
       <section>
         <h2>Delivery</h2>
-        <div id="ally-d1" class="fake-btn" onclick="openDialog('dialog1', this)">Add Delivery Address</div>
+        <button id="ally-d1" class="fake-btn" onclick="openDialog('dialog1', this)">Add Delivery Address</button>
         <div id="dialog_layer" class="dialogs">
           <div role="dialog" id="dialog1" aria-labelledby="dialog1_label" aria-modal="true" class="hidden">
             <h2 id="dialog1_label" class="dialog_label">Add Delivery Address</h2>
@@ -116,7 +116,7 @@
             <span class="message" id="email_error"></span>
           </div>
           <div class="form_item">
-            <div id="ally-d2" class="fake-btn" onclick="document.getElementById('signup').dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}))">Submit</div>
+            <button id="ally-d2" class="fake-btn" onclick="document.getElementById('signup').dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}))">Submit</button>
           </div>
           <p id="signup_status" role="status"></p>
         </form>
@@ -176,14 +176,14 @@
       <!-- Switch Pattern: content/patterns/switch/examples/switch.html -->
       <section>
         <h2>Preferences</h2>
-        <div role="switch" aria-checked="false">
+        <button role="switch" aria-checked="false">
           <span class="label">Notifications</span>
           <span class="switch">
             <span></span>
           </span>
           <span class="on" aria-hidden="true">On</span>
           <span class="off" aria-hidden="true">Off</span>
-        </div>
+        </button>
       </section>
     </main>
   <!-- ally:injected -->
