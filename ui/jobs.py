@@ -298,7 +298,13 @@ def free_memory_for_build(session) -> str:
              "2>/dev/null; echo -n ' of '; "
              "awk '{printf \"%d\", $1/1048576}' /sys/fs/cgroup/memory.max 2>/dev/null")
     before = session.exec(probe, timeout=60)
-    session.exec("pkill -f chromium; sleep 2; true", timeout=120)
+    # Everything a previous run may have left behind, not just the browser: a
+    # node server from the last re-audit, a static server, a stray chromium.
+    # `next build` succeeds in a fresh sandbox with the same settings that it
+    # is killed with here, and the difference is what else is still resident.
+    session.exec("pkill -f chromium; pkill -f ally_serve.py; "
+                 "pkill -f 'http.server 3000'; pkill -f 'next start'; "
+                 "pkill -f 'npm start'; pkill -f node; sleep 2; true", timeout=120)
     session._ready = False          # so the next record() starts it again
 
     # The desktop as well. Killing only the browser left 370MB of 1024 in use
@@ -309,6 +315,10 @@ def free_memory_for_build(session) -> str:
         session._desktop = False
     except Exception:
         pass
+    # Page cache counts against the cgroup, and a reused sandbox carries a lot
+    # of it after a clone and an install.
+    session.exec("sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; true",
+                 timeout=60)
     after = session.exec(probe, timeout=60)
     return (f"memory in use {(before.result or '?').strip()}MB, "
             f"{(after.result or '?').strip()}MB with the browser and desktop "
@@ -506,6 +516,12 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         # One declared route. Try the links on the page next -- a static site
         # with no framework has neither route files nor a router config -- and
         # only then treat the page as a flow whose steps are its pages.
+        # Both of these drive a browser over CDP, and neither starts one. It
+        # worked only because a warm sandbox happened to have Chromium running
+        # from an earlier run -- and once the fix step started cleaning up
+        # after itself, the next run's discovery found nothing and reported a
+        # four-step page as a one-page site.
+        audit.session.start_browser()
         linked = find_pages(audit.session, job.url, limit=MAX_SANDBOXES)
         if linked:
             job.say("audit", f"one declared route, {len(linked)} linked page(s)")
