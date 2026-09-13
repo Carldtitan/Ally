@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Page</title>
+    <link rel="icon" href="data:,">
+
+    <!--
+      Dialog, menu button, tabs and switch are copied from the W3C ARIA
+      Authoring Practices Guide: github.com/w3c/aria-practices, content/patterns,
+      commit 7e4034b. The form follows the W3C WAI Forms Tutorial.
+      W3C Software and Document License:
+      https://www.w3.org/Consortium/Legal/2015/copyright-software-and-document
+    -->
+    <link href="css/site.css" rel="stylesheet">
+    <link href="css/dialog.css" rel="stylesheet">
+    <link href="css/menu-button-actions.css" rel="stylesheet">
+    <link href="css/tabs.css" rel="stylesheet">
+    <link href="css/switch.css" rel="stylesheet">
+
+    <script src="js/utils.js"></script>
+    <script src="js/dialog.js"></script>
+    <script src="js/menu-button-actions.js"></script>
+    <script src="js/tabs-automatic.js"></script>
+    <script src="js/switch.js"></script>
+    <script src="js/form.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Example Page</h1>
+
+      <!-- Dialog (Modal) Pattern: content/patterns/dialog-modal/examples/dialog.html -->
+      <section>
+        <h2>Delivery</h2>
+        <button type="button" onclick="openDialog('dialog1', this)">Add Delivery Address</button>
+        <div id="dialog_layer" class="dialogs">
+          <div role="dialog" id="dialog1" aria-labelledby="dialog1_label" aria-modal="true" class="hidden">
+            <h2 id="dialog1_label" class="dialog_label">Add Delivery Address</h2>
+            <div class="dialog_form">
+              <div class="dialog_form_item">
+                <label>
+                  <span class="label_text">Street:</span>
+                  <input type="text" class="wide_input" autocomplete="address-line1">
+                </label>
+              </div>
+              <div class="dialog_form_item">
+                <label>
+                  <span class="label_text">City:</span>
+                  <input type="text" class="city_input" autocomplete="address-level2">
+                </label>
+              </div>
+              <div class="dialog_form_item">
+                <label>
+                  <span class="label_text">State:</span>
+                  <input type="text" class="state_input" autocomplete="address-level1">
+                </label>
+              </div>
+              <div class="dialog_form_item">
+                <label>
+                  <span class="label_text">Zip:</span>
+                  <input type="text" class="zip_input" autocomplete="postal-code">
+                </label>
+              </div>
+
+              <div class="dialog_form_item">
+                <label for="special_instructions">
+                  <span class="label_text">Special instructions:</span>
+                </label>
+                <input id="special_instructions" type="text" aria-describedby="special_instructions_desc" class="wide_input">
+                <div class="label_info" id="special_instructions_desc">For example, gate code or other information to help the driver find you</div>
+              </div>
+            </div>
+            <div class="dialog_form_actions">
+              <button type="button" onclick="closeDialog(this)">Add</button>
+              <button type="button" onclick="closeDialog(this)">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Menu Button Pattern: content/patterns/menu-button/examples/menu-button-actions.html -->
+      <section>
+        <h2>Actions</h2>
+        <div class="menu-button-actions">
+          <button type="button" id="menubutton1" aria-haspopup="true" aria-expanded="false" aria-controls="menu1">
+            Actions
+            <svg xmlns="http://www.w3.org/2000/svg" class="down" width="12" height="9" viewBox="0 0 12 9">
+              <polygon points="1 0, 11 0, 6 8" />
+            </svg>
+          </button>
+
+          <ul id="menu1" role="menu" aria-labelledby="menubutton1">
+            <li role="menuitem">Action 1</li>
+            <li role="menuitem">Action 2</li>
+            <li role="menuitem">Action 3</li>
+            <li role="menuitem">Action 4</li>
+          </ul>
+        </div>
+        <p>
+          <label>Last Action: <input class="action" id="action_output" type="text" value=""></label>
+        </p>
+      </section>
+
+      <!-- W3C WAI Forms Tutorial: "Validating Input" and "User Notifications, After submit" -->
+      <section>
+        <h2>Sign Up</h2>
+        <form id="signup" novalidate>
+          <div class="form_item">
+            <label for="full_name">Full name:</label>
+            <input type="text" id="full_name" name="full_name" autocomplete="name">
+          </div>
+          <div class="form_item" id="email_item">
+            <label for="email"><strong id="email_prefix"></strong> Email (required):</label>
+            <input type="email" id="email" name="email" autocomplete="email" required aria-describedby="email_error">
+            <span class="message" id="email_error"></span>
+          </div>
+          <div class="form_item">
+            <button type="submit">Submit</button>
+          </div>
+          <p id="signup_status" role="status"></p>
+        </form>
+      </section>
+
+      <!-- Tabs Pattern: content/patterns/tabs/examples/tabs-automatic.html -->
+      <section>
+        <div class="tabs">
+          <h2 id="tablist-1">Danish Composers</h2>
+          <div role="tablist" aria-labelledby="tablist-1" class="automatic">
+            <button id="tab-1" type="button" role="tab" aria-selected="true" aria-controls="tabpanel-1">
+              <span class="focus">Maria Ahlefeldt</span>
+            </button>
+            <button id="tab-2" type="button" role="tab" aria-selected="false" aria-controls="tabpanel-2" tabindex="-1">
+              <span class="focus">Carl Andersen</span>
+            </button>
+            <button id="tab-3" type="button" role="tab" aria-selected="false" aria-controls="tabpanel-3" tabindex="-1">
+              <span class="focus">Ida da Fonseca</span>
+            </button>
+            <button id="tab-4" type="button" role="tab" aria-selected="false" aria-controls="tabpanel-4" tabindex="-1">
+              <span class="focus">Peter Müller</span>
+            </button>
+          </div>
+
+          <div id="tabpanel-1" role="tabpanel" tabindex="0" aria-labelledby="tab-1">
+            <p>
+              Maria Theresia Ahlefeldt (16 January 1755 – 20 December 1810) was a Danish, (originally German), composer.
+              She is known as the first female composer in Denmark.
+              Maria Theresia composed music for several ballets, operas, and plays of the royal theatre.
+              She was given good critic as a composer and described as a “<span lang="da">virkelig Tonekunstnerinde</span>” ('a True Artist of Music').
+            </p>
+          </div>
+          <div id="tabpanel-2" role="tabpanel" tabindex="0" aria-labelledby="tab-2" class="is-hidden">
+            <p>
+              Carl Joachim Andersen (29 April 1847 – 7 May 1909) was a Danish flutist, conductor and composer born in Copenhagen, son of the flutist Christian Joachim Andersen.
+              Both as a virtuoso and as composer of flute music, he is considered one of the best of his time.
+              He was considered to be a tough leader and teacher and demanded as such a lot from his orchestras but through that style he reached a high level.
+            </p>
+          </div>
+          <div id="tabpanel-3" role="tabpanel" tabindex="0" aria-labelledby="tab-3" class="is-hidden">
+            <p>
+              Ida Henriette da Fonseca (July 27, 1802 – July 6, 1858) was a Danish opera singer and composer.
+              Ida Henriette da Fonseca was the daughter of Abraham da Fonseca (1776–1849) and Marie Sofie Kiærskou (1784–1863).
+              She and her sister Emilie da Fonseca were students of Giuseppe Siboni, choir master of the Opera in Copenhagen.
+              She was given a place at the royal Opera alongside her sister the same year she debuted in 1827.
+            </p>
+          </div>
+          <div id="tabpanel-4" role="tabpanel" tabindex="0" aria-labelledby="tab-4" class="is-hidden">
+            <p>
+              Peter Erasmus Lange-Müller (1 December 1850 – 26 February 1926) was a Danish composer and pianist.
+              His compositional style was influenced by Danish folk music and by the work of Robert Schumann; Johannes Brahms; and his Danish countrymen, including J.P.E. Hartmann.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Switch Pattern: content/patterns/switch/examples/switch.html -->
+      <section>
+        <h2>Preferences</h2>
+        <div role="switch" aria-checked="false" tabindex="0">
+          <span class="label">Notifications</span>
+          <span class="switch">
+            <span></span>
+          </span>
+          <span class="on" aria-hidden="true">On</span>
+          <span class="off" aria-hidden="true">Off</span>
+        </div>
+      </section>
+    </main>
+  <!-- ally:injected -->
+<style>
+/* 2.4.11 instance 1: page foot */
+#ally-cover-1 { position: fixed; left: 0; right: 0; bottom: 0; height: 120px; background: #23150f; color: #fff; z-index: 9000; padding: 10px 16px; }
+
+/* 2.4.11 instance 2: page head */
+#ally-cover-2 { position: fixed; left: 0; right: 0; top: 0; height: 210px; background: #b85632; color: #fff; z-index: 9000; padding: 10px 16px; }
+
+/* 2.4.11 instance 3: signup form */
+#ally-cover-3 { position: fixed; left: 0; width: 640px; top: 520px; height: 110px; background: #3f765c; color: #fff; z-index: 9000; padding: 10px 16px; }
+</style>
+<div id="ally-cover-1">Cookie preferences</div>
+<div id="ally-cover-2">Announcement</div>
+<div id="ally-cover-3">Live chat</div>
+</body>
+</html>

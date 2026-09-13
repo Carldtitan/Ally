@@ -1,0 +1,64 @@
+/*
+ *   Page layout only. Component styles come from the APG CSS files,
+ *   which load after this file and win on equal specificity.
+ */
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+section {
+  margin-block: 2rem;
+}
+
+/*
+ *   Visible focus for anything the APG styles do not cover. APG selectors
+ *   that replace the outline with a border are more specific, so they keep
+ *   their own focus indicator.
+ */
+:focus {
+  outline: 3px solid #0b5cad;
+  outline-offset: 2px;
+}
+
+/*
+ *   tabs.css caps each tab at 22% width with overflow hidden, which cuts off
+ *   labels on narrow screens. Let tabs size to their labels and wrap instead.
+ *   Three attribute/class selectors outrank tabs.css's [role="tab"]:focus.
+ */
+.tabs [role="tablist"] [role="tab"] {
+  max-width: none;
+}
+
+/* Keep the open menu above positioned content (tabs use z-index 2). */
+.menu-button-actions [role="menu"] {
+  z-index: 3;
+}
+
+/* Form colors from the W3C WAI Forms Tutorial, "After submit" example. */
+.form_item {
+  margin-bottom: 0.75em;
+}
+
+.form_item label,
+.form_item .message {
+  display: block;
+}
+
+.error {
+  color: #900;
+}
+
+.error input {
+  border: 3px solid #900;
+}
