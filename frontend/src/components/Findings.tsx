@@ -5,7 +5,7 @@
 // rules axe actually fired here, never asserted from a table.
 
 import type { Finding, Job } from '../api'
-import { Check } from '../Icons'
+import { Icon } from '../Icon'
 
 const NAMES: Record<string, string> = {
   '2.1.1': 'Keyboard',
@@ -47,8 +47,8 @@ export function Findings({ findings, axe }: Props) {
   return (
     <>
       {axe.ran && gaps > 0 && (
-        <div className="note" style={{ marginBottom: 14 }}>
-          <Check />
+        <div className="status-label status-neutral" style={{ marginBottom: 14 }}>
+          <Icon name="check" />
           <span>
             <b>{gaps} of the five</b> found a defect on this page that axe-core{' '}
             {axe.version} did not report. It ran, and it has no rule that fires on{' '}
@@ -81,10 +81,10 @@ export function Findings({ findings, axe }: Props) {
                 <td>
                   {failed.length ? (
                     <>
-                      <span className="note bad">failed</span>
+                      <span className="status-label status-blocked">failed</span>
                       <span className="muted">{failed[0].summary}</span>
                       {failed[0].targets.length > 0 && (
-                        <span className="chips">
+                        <span className="tag-list">
                           {failed[0].targets.slice(0, 4).map((t) => (
                             <code key={t}>{t}</code>
                           ))}
@@ -93,11 +93,11 @@ export function Findings({ findings, axe }: Props) {
                     </>
                   ) : ne.length ? (
                     <>
-                      <span className="pill flat">not evaluated</span>
+                      <span className="status-label status-queued">not evaluated</span>
                       <span className="muted">{ne[0].reason}</span>
                     </>
                   ) : mine.length ? (
-                    <span className="pill ok"><Check /> passed</span>
+                    <span className="status-label status-done"><Icon name="check" /> passed</span>
                   ) : (
                     <span className="muted">not run</span>
                   )}

@@ -1,65 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, type Job } from './api'
-import { Overview } from './components/Overview'
-import { RunPage } from './components/RunPage'
-import { Play, Pulse } from './Icons'
+import { Sidebar, type Tab } from './components/Sidebar'
+import { Home } from './components/Home'
+import { Runs } from './components/Runs'
+import { FindingsTab } from './components/FindingsTab'
+import { LoopTab } from './components/LoopTab'
+
+type Row = {
+  id: string; url: string; repo: string; status: string
+  phase: string; findings: number; pr_url: string
+}
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>('home')
   const [job, setJob] = useState<Job | null>(null)
+  const [rows, setRows] = useState<Row[]>([])
 
-  useEffect(() => {
-    document.title = job ? `${job.url} — Ally` : 'Ally'
-  }, [job])
+  const refresh = useCallback(() => {
+    api.jobs().then((d) => setRows(d.jobs)).catch(() => { /* keeps what it has */ })
+  }, [])
 
-  async function open(id: string) {
-    try { setJob(await api.job(id)) } catch { /* the list stays put */ }
+  useEffect(() => { refresh() }, [refresh, tab])
+
+  const open = useCallback(async (id: string) => {
+    try {
+      setJob(await api.job(id))
+      setTab('runs')
+    } catch { /* the list stays put */ }
+  }, [])
+
+  function started(j: Job) {
+    setJob(j)
+    setTab('runs')
+    refresh()
   }
 
-  const open_ = job?.findings.filter((f) => f.status === 'failed').length ?? 0
+  const findingCount = rows.reduce((n, r) => n + r.findings, 0)
+  const prCount = rows.filter((r) => r.pr_url).length
 
   return (
-    <div className="shell">
+    <div className="app-shell">
       <a className="skip-link" href="#main">Skip to content</a>
 
-      <nav className="rail" aria-label="Main">
-        <span className="wordmark">
-          <span className="mark" aria-hidden="true" />
-          Ally
-        </span>
+      <Sidebar
+        tab={tab}
+        setTab={(t) => { if (t !== 'runs') setJob(null); setTab(t) }}
+        target={job ? job.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '') : ''}
+        runCount={rows.length}
+        findingCount={findingCount}
+      />
 
-        <div className="rail-nav">
-          <button
-            className="rail-link"
-            aria-current={job ? undefined : 'page'}
-            onClick={() => setJob(null)}
-          >
-            <Play size={15} />
-            New run
-          </button>
-          {job && (
-            <button className="rail-link" aria-current="page">
-              <Pulse size={15} />
-              This run
-              {open_ > 0 && <span className="count">{open_}</span>}
-            </button>
-          )}
-        </div>
-
-        {job && (
-          <div className="rail-foot">
-            <div className="rail-target">
-              <small>Target</small>
-              <strong>{job.repo.replace(/^https?:\/\/(www\.)?github\.com\//, '')}</strong>
-            </div>
-          </div>
+      <div className="app-main" id="main">
+        {tab === 'home' && (
+          <Home onStarted={started} runs={rows.length}
+                findings={findingCount} prs={prCount} />
         )}
-      </nav>
-
-      <main className="stage" id="main">
-        {job
-          ? <RunPage job={job} onUpdate={setJob} onBack={() => setJob(null)} />
-          : <Overview onStarted={setJob} onOpen={open} />}
-      </main>
+        {tab === 'runs' && (
+          <Runs job={job} rows={rows} onOpen={open} onUpdate={setJob}
+                onClose={() => setJob(null)} />
+        )}
+        {tab === 'findings' && <FindingsTab onOpen={open} />}
+        {tab === 'loop' && <LoopTab onOpen={open} />}
+      </div>
     </div>
   )
 }

@@ -50,7 +50,7 @@ export function LiveView({ recordings }: Props) {
 
   return (
     <>
-      <div className="tabs" role="tablist" aria-label="Page states">
+      <div className="tabrow" role="tablist" aria-label="Page states">
         {states.map((s, i) => (
           <button
             key={s}
@@ -71,7 +71,7 @@ export function LiveView({ recordings }: Props) {
 
       <div role="tabpanel" id={`panel-${active}`} aria-labelledby={`tab-${active}`}>
         {!rec.state_reached ? (
-          <div className="empty">
+          <div className="quiet-panel">
             <strong>This state was never reached.</strong>
             {rec.reach_note}
           </div>
@@ -95,20 +95,20 @@ export function LiveView({ recordings }: Props) {
                     )}
                   </>
                 ) : (
-                  <div className="none">
+                  <div className="frame-empty">
                     No screenshot was captured for this state.
                   </div>
                 )}
               </div>
 
-              <div className="stops">
+              <div className="stoplist">
                 <ol>
                   {stops.map((s) => {
                     const invisible = s.focus_delta !== null && s.focus_delta < 0.005
                     return (
                       <li key={s.index}>
                         <button
-                          className="stop"
+                          className="stop-btn"
                           type="button"
                           aria-current={s.index === (current?.index ?? -1)}
                           onClick={() => setStopIndex(s.index)}
@@ -121,11 +121,11 @@ export function LiveView({ recordings }: Props) {
                             </span>
                           </span>
                           {s.obscured_by ? (
-                            <span className="flag">covered</span>
+                            <span className="fl">covered</span>
                           ) : invisible ? (
-                            <span className="flag">no focus ring</span>
+                            <span className="fl">no focus ring</span>
                           ) : s.focus_delta !== null ? (
-                            <span className="delta">{s.focus_delta.toFixed(2)}</span>
+                            <span className="dl">{s.focus_delta.toFixed(2)}</span>
                           ) : null}
                         </button>
                       </li>
