@@ -167,10 +167,12 @@ a:hover { color: var(--primary-hover); }
 .notion-sidebar-top { display: flex; flex-direction: column; gap: 20px; }
 
 .notion-sidebar-header { display: flex; align-items: center; gap: 8px; padding: 4px 12px; }
-.notion-sidebar-avatar {
-  width: 26px; height: 26px; flex: none; display: grid; place-items: center;
-  border-radius: 5px; background: var(--text-primary); color: var(--bg-color);
-}
+/* The identity block was two inline spans with no rule, so "Ally" and
+   "Keyboard accessibility" ran together on one line. */
+.notion-sidebar-identity { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.notion-sidebar-title { font-weight: 600; font-size: 0.875rem; color: var(--text-primary); }
+.notion-sidebar-sub { font-size: 0.72rem; color: var(--text-secondary); }
+.notion-sidebar-avatar { font-size: 1.3rem; line-height: 1; flex: none; }
 
 .notion-sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
 .notion-sidebar-section {
@@ -236,10 +238,19 @@ a:hover { color: var(--primary-hover); }
   display: flex; flex-direction: column; gap: 8px;
   padding-bottom: 8px; border-bottom: 1px solid var(--panel-border);
 }
+/* The big emoji above a page title is Notion's own furniture, and AccessiFix
+   uses it. An earlier pass swapped every emoji here for drawn SVG on a general
+   design principle; the brief pins this look, so the emoji are back. */
+.notion-page-icon { font-size: 4rem; line-height: 1.1; margin-bottom: 8px; }
+.notion-callout-icon { font-size: 1.25rem; flex-shrink: 0; line-height: 1.3; }
+.sidebar-emoji { font-size: 1rem; line-height: 1; width: 1.15rem; text-align: center; }
+
+.stat-card { padding: 16px; display: flex; align-items: center; justify-content: space-between; }
+.stat-card-emoji { font-size: 1.5rem; line-height: 1; }
 .notion-page-title {
   font-size: 2.25rem; font-weight: 700; letter-spacing: -0.03em;
   color: var(--text-primary); font-family: var(--font-sans);
-  text-wrap: balance;
+  text-wrap: balance; line-height: 1.15;
 }
 .notion-page-description { font-size: 1rem; color: var(--text-secondary); line-height: 1.5; max-width: 70ch; }
 

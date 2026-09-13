@@ -15,10 +15,13 @@ const CRUMB: Record<Tab, string> = {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('new')
+  // Light unless someone chose otherwise, exactly as AccessiFix does. Following
+  // prefers-color-scheme instead meant a machine set to dark never saw the
+  // template's actual face: Notion white, grey sidebar, charcoal text, blue
+  // accent. Dark is a variant of this world, not the default view of it.
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('ally-theme')
-    if (saved === 'light' || saved === 'dark') return saved
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    const saved = localStorage.getItem('notion-theme')
+    return saved === 'dark' ? 'dark' : 'light'
   })
   const [job, setJob] = useState<Job | null>(null)
   const [past, setPast] = useState<{ id: string; url: string; repo: string
@@ -28,7 +31,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('ally-theme', theme)
+    localStorage.setItem('notion-theme', theme)
   }, [theme])
 
   useEffect(() => {

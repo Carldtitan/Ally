@@ -24,6 +24,7 @@ left out of it.
 from __future__ import annotations
 
 import io
+import sys
 import json
 import time
 import argparse
@@ -33,6 +34,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# Run as `python ui/server.py`, sys.path[0] is ui/, not the project root, so
+# `from ui import jobs` inside a request handler raised ModuleNotFoundError and
+# the connection closed with no response at all -- a 200 on / and an empty reply
+# on every API call, which reads as a server bug rather than an import one.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(ROOT / "tools") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tools"))
+
 STATIC = pathlib.Path(__file__).resolve().parent / "static"
 ARTIFACTS = ROOT / "artifacts"
 DIST = ROOT / "frontend" / "dist"
