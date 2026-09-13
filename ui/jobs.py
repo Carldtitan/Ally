@@ -280,6 +280,7 @@ class BuildFailed(RuntimeError):
 #: the kernel kills it. Measured on BitEstate: `npm run build` was Killed with
 #: exit 137, and the same build with one worker finished in 9 seconds.
 BUILD_ENV = ("PARCEL_WORKERS=1 JOBS=1 UV_THREADPOOL_SIZE=2 "
+             "RAYON_NUM_THREADS=1 NEXT_TELEMETRY_DISABLED=1 CI=1 "
              "NODE_OPTIONS=--max-old-space-size=768")
 
 
@@ -358,11 +359,23 @@ def prepare_build(session, checkout: str) -> tuple[str, str]:
         f"cd {checkout} && for d in dist out build public; do "
         f'test -f "$d/index.html" && echo "$d" && break; done', timeout=60)
     lines = [l.strip() for l in (found.result or "").splitlines() if l.strip()]
-    # No build output and a build that claimed success means this repository is
-    # served from its source tree, which is only true of a hand-written page.
-    if not lines:
-        return checkout, ""
-    return f"{checkout}/{lines[-1]}", build
+    if lines:
+        return f"{checkout}/{lines[-1]}", build
+
+    # Built successfully, and produced no folder anyone can serve. Next.js is
+    # the case that matters: `.next` is not a site, the app is a server. If the
+    # project declares a start script, the loop runs it instead of serving a
+    # directory.
+    has_start = session.exec(
+        f"cd {checkout} && node -e "
+        f'"process.exit(require(\'./package.json\').scripts?.start ? 0 : 1)"'
+        f" && echo yes || echo no", timeout=120)
+    if "yes" in (has_start.result or ""):
+        return f"server:{checkout}", build
+
+    # No build output and no server: this repository is served from its source
+    # tree, which is only true of a hand-written page.
+    return checkout, ""
 
 
 @_op
@@ -650,8 +663,10 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
                       "from a clean clone and a patch could not be re-audited. "
                       "The findings above stand; no fix was attempted.", "warn")
         return
-    job.say("fix", f"Serving {serve_root.rsplit('/', 1)[-1]}/"
-                   + (" and rebuilding between patches" if build_cmd else ""))
+    job.say("fix", ("Running the app's own server, and rebuilding between patches"
+                    if serve_root.startswith("server:") else
+                    f"Serving {serve_root.rsplit('/', 1)[-1]}/"
+                    + (" and rebuilding between patches" if build_cmd else "")))
 
     lessons = Lessons(job.id)
     loop = FixLoop(audit, workdir=pathlib.Path(CHECKOUT),
@@ -684,10 +699,18 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     if not want_pr:
         job.say("pr", "Diff ready. Pull request not requested.")
         return
+    # Net positive, or nothing. A patch that closes one finding and creates
+    # another has not improved the page, and sending it as a fix is the exact
+    # claim this whole loop exists to refuse.
     closed_total = sum(p.get("closed", 0) for p in job.patches)
+    created_total = sum(p.get("created", 0) for p in job.patches)
     has_diff = bool((job.diff or "").strip().strip("-"))
-    if not closed_total or not has_diff:
+    if closed_total <= created_total or not has_diff:
         job.pr_blocked = (
+            f"No pull request: {closed_total} finding(s) closed and "
+            f"{created_total} created, so the page is no better than it was. "
+            "What each attempt did, and why, is in the table above."
+            if has_diff else
             "No pull request: the re-audit did not confirm a single fix, so "
             "there is nothing here worth sending. What each attempt did, and "
             "why it failed, is in the table above.")

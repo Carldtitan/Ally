@@ -390,6 +390,42 @@ class FixLoop:
 
         return None, used, last
 
+    def _serve(self) -> bool:
+        """Put the patched build on port 3000. True once it answers.
+
+        Two shapes. A folder is served by SPA_SERVER, which falls back to
+        index.html so a client-side route resolves instead of 404ing -- without
+        that, a re-audit of /audit-trail gets a 404 page, which fails no check
+        and reads as a clean fix. A Next.js project has no such folder, so its
+        own server is started instead.
+        """
+        session = self.audit.session
+        session.exec("pkill -f 'http.server 3000'; pkill -f ally_serve.py; "
+                     "pkill -f 'next start'; pkill -f 'npm start'; sleep 1; true",
+                     timeout=120)
+
+        if self.serve_root.startswith("server:"):
+            root = self.serve_root[len("server:"):]
+            session.exec(
+                f"cd {root} && PORT=3000 NODE_OPTIONS=--max-old-space-size=512 "
+                "nohup npm start > /tmp/patched.log 2>&1 & echo ok", timeout=90)
+            wait = 60
+        else:
+            session.sb.fs.upload_file(SPA_SERVER.encode(), "/tmp/ally_serve.py")
+            session.exec(f"nohup python3 /tmp/ally_serve.py {self.serve_root} "
+                         "> /tmp/patched.log 2>&1 & echo ok", timeout=90)
+            wait = 20
+
+        probe = ("python3 -c \"import urllib.request as u; "
+                 "print(u.urlopen('http://127.0.0.1:3000/', timeout=4).status)\" "
+                 "2>/dev/null || echo down")
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            if "200" in (session.exec(probe, timeout=30).result or ""):
+                return True
+            time.sleep(2)
+        return False
+
     # -- rebuild and re-audit --------------------------------------------
 
     @_op
@@ -437,15 +473,10 @@ class FixLoop:
                                 "patch could not be re-audited: " + text[-200:])
                 return [], []
 
-        # A static file server 404s /audit-trail, because that route exists
-        # only inside the bundle. Every client-side route would re-audit as a
-        # 404 page, which fails no check and would read as a clean fix.
-        self.audit.session.sb.fs.upload_file(SPA_SERVER.encode(), "/tmp/ally_serve.py")
-        self.audit.session.sb.process.exec(
-            "pkill -f 'http.server 3000'; pkill -f ally_serve.py; sleep 1; "
-            f"nohup python3 /tmp/ally_serve.py {self.serve_root} "
-            "> /tmp/patched.log 2>&1 & echo ok", timeout=90)
-        time.sleep(2)
+        if not self._serve():
+            self.blocked = ("the patched tree built but nothing answered on "
+                            "port 3000, so the patch could not be re-audited")
+            return [], []
 
         after: set[str] = set()
         not_eval: list[str] = []

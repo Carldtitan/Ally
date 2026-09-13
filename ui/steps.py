@@ -114,9 +114,22 @@ def discover_steps(session, url: str, limit: int = 3) -> list:
     if not line:
         return []
     try:
-        return json.loads(line[len("STEPS "):])[:limit]
+        found = json.loads(line[len("STEPS "):])
     except Exception:
         return []
+    # One label, one step. A run against touchgrass spent two of its four
+    # sandboxes pressing two different controls both labelled "Sign up", and
+    # reported the same screen twice under the same name.
+    seen, out = set(), []
+    for step in found:
+        label = (step.get("label") or "").strip().lower()
+        if label in seen:
+            continue
+        seen.add(label)
+        out.append(step)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def register_step_state(name: str, selector: str) -> str:
