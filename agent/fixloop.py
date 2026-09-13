@@ -150,6 +150,18 @@ class FixLoop:
                                             lesson_text, retry_note)
             outcome.locate_attempts += used
             if plan is None:
+                # Nothing left to find is not a failure to find something. One
+                # patch often closes every instance of a criterion at once --
+                # three divs becoming three buttons in one edit -- and the next
+                # attempt then reports "the find text matched 0 times". Reporting
+                # that group as could_not_locate while it had already closed
+                # three findings is the counter contradicting itself, and it
+                # reached the screen looking like a broken run.
+                if outcome.closed:
+                    outcome.status = "closed"
+                    outcome.reason = ("closed by an earlier patch in this group; "
+                                      "nothing remained to locate")
+                    return outcome
                 outcome.status = "could_not_locate"
                 outcome.reason = (f"could not locate the code after "
                                   f"{MAX_LOCATE_ATTEMPTS} attempts on patch attempt "
@@ -186,6 +198,11 @@ class FixLoop:
                 # The text stopped matching between planning and applying:
                 # a locate problem, so it does not spend a patch attempt.
                 if outcome.locate_attempts >= MAX_LOCATE_ATTEMPTS * MAX_PATCH_ATTEMPTS:
+                    if outcome.closed:
+                        outcome.status = "closed"
+                        outcome.reason = ("closed by an earlier patch in this "
+                                          "group; nothing remained to locate")
+                        return outcome
                     outcome.status = "could_not_locate"
                     outcome.reason = applied.reason
                     return outcome
