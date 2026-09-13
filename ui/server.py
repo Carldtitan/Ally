@@ -794,6 +794,21 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p = u.path
 
+        # The built React app owns the UI. Anything that is not an API call, a
+        # screenshot or a stylesheet falls through to index.html so a client
+        # route survives a reload.
+        #
+        # The server-rendered screens below are the fallback for when frontend/
+        # has never been built -- they still work, so a fresh clone is not a
+        # blank page, but they are not the product surface any more.
+        if DIST.exists() and not p.startswith(("/api/", "/shot/", "/static/", "/events")):
+            f = DIST / (p.lstrip("/") or "index.html")
+            if not f.is_file():
+                f = DIST / "index.html"
+            if f.is_file():
+                ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+                return self._send(f.read_bytes(), ctype)
+
         if p == "/":
             return self._send(start_screen())
         # ---- JSON API, which the React frontend uses --------------------
@@ -827,18 +842,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(benchmark_screen())
         if p == "/loop":
             return self._send(loop_screen())
-        # The built React app, when it has been built. Any unknown path falls
-        # through to index.html so client-side routes survive a reload.
-        if DIST.exists():
-            rel = p.lstrip("/") or "index.html"
-            f = DIST / rel
-            if not f.is_file() and not p.startswith(("/api/", "/shot/", "/static/",
-                                                     "/events")):
-                f = DIST / "index.html"
-            if f.is_file():
-                ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
-                return self._send(f.read_bytes(), ctype)
-
         if p.startswith("/static/"):
             f = STATIC / p[len("/static/"):]
             if not f.exists():
