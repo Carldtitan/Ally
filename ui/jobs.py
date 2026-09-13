@@ -283,6 +283,14 @@ BUILD_ENV = ("PARCEL_WORKERS=1 JOBS=1 UV_THREADPOOL_SIZE=2 "
              "RAYON_NUM_THREADS=1 NEXT_TELEMETRY_DISABLED=1 CI=1 "
              "NODE_OPTIONS=--max-old-space-size=768")
 
+#: Installing is not bundling. npm needs very little heap, and a large
+#: --max-old-space-size makes V8 lazy about collecting: it grows towards a
+#: limit the cgroup will not allow and the kernel kills it first. Clearway's
+#: 590 packages installed in 26 seconds in an empty sandbox and were killed in
+#: a reused one, with the bundler's setting inherited.
+INSTALL_ENV = ("NPM_CONFIG_AUDIT=false NPM_CONFIG_FUND=false CI=1 "
+               "NODE_OPTIONS=--max-old-space-size=384")
+
 
 def free_memory_for_build(session) -> str:
     """Stop the browser so the bundler can have the memory.
@@ -353,10 +361,19 @@ def prepare_build(session, checkout: str) -> tuple[str, str]:
             return "", ""
         return checkout, ""            # a static site: serve it as it stands
 
-    session.exec(f"cd {checkout} && ({BUILD_ENV} npm ci --no-audit --no-fund || "
-                 f"{BUILD_ENV} npm install --no-audit --no-fund) "
-                 f"> /tmp/npm-install.log 2>&1; tail -3 /tmp/npm-install.log",
-                 timeout=1500)
+    got = session.exec(
+        f"cd {checkout} && ({INSTALL_ENV} npm ci --no-audit --no-fund || "
+        f"{INSTALL_ENV} npm install --no-audit --no-fund) "
+        f"> /tmp/npm-install.log 2>&1; echo EXIT:$?; tail -4 /tmp/npm-install.log",
+        timeout=1500)
+    # The install's exit code was never read, so a failed install went quietly
+    # on to a build that reported "next: not found" -- which reads as a missing
+    # dependency rather than as the install that never finished.
+    itext = got.result or ""
+    if "EXIT:0" not in itext:
+        why = "ran out of memory" if "EXIT:137" in itext else "failed"
+        raise BuildFailed(f"installing the dependencies {why}: "
+                          + itext.replace("EXIT:", "exit ")[-300:])
     build = f"cd {checkout} && {BUILD_ENV} npm run build"
     out = session.exec(f"{build} > /tmp/build.log 2>&1; echo EXIT:$?; tail -4 /tmp/build.log",
                        timeout=1500)
