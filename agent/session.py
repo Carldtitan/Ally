@@ -166,6 +166,8 @@ class Session:
             state_reached=raw["state_reached"], reach_note=raw["reach_note"],
             truncated=raw.get("truncated", False),
             page_height=raw.get("page_height", 0),
+            focusable_total=raw.get("focusable_total", 0),
+            consent_note=raw.get("consent_note", "") or "",
         )
         for s in raw.get("stops", []):
             png = base64.b64decode(s.pop("png_focused") or "") or None
@@ -179,7 +181,7 @@ class Session:
                 x=s["x"], y=s["y"], w=s["w"], h=s["h"], selector=s["selector"],
                 vx=s.get("vx", s["x"]), vy=s.get("vy", s["y"]),
                 screenshot=ref, obscured_by=s.get("obscured_by"),
-                anchors=s.get("anchors") or {},
+                anchors=s.get("anchors") or {}, parent=s.get("parent"),
             )
             if blurred is not None and png is not None:
                 stop.focus_delta = crop_diff(blurred, png, stop)

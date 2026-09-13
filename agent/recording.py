@@ -94,7 +94,10 @@ def exclusion_summary(rec) -> tuple[int, str]:
     for e in ex:
         label = {"managed": "roving tabindex",
                  "inside-control": "inside a larger control",
-                 "delegating-container": "delegating container"}.get(e.rule, e.rule)
+                 "delegating-container": "delegating container",
+                 "not-visible": "not visible",
+                 "opted-out": 'explicit tabindex="-1"',
+                 "stale": "gone or changed by the end of the run"}.get(e.rule, e.rule)
         counts[label] = counts.get(label, 0) + 1
     note = ", ".join(f"{n} {label}" for label, n in sorted(counts.items()))
     return len(ex), note
@@ -198,6 +201,9 @@ class Stop:
     #: What this element is, and what it sits inside. See browser.anch.
     #: {"self": ["input", "#email", ".city_input"], "within": ["#email_item"]}
     anchors: dict = field(default_factory=dict)
+    #: The parent element's selector, used to group stops into layout blocks
+    #: before reading order is derived. See checks.reading_order.
+    parent: str | None = None
 
     @property
     def cite(self) -> str:
@@ -276,6 +282,11 @@ class Recording:
     truncated: bool = False
     viewport: tuple[int, int] = (1024, 740)
     page_height: int = 0
+    #: How many focusable elements the page has, counted in the browser. The
+    #: denominator for coverage: see checks.coverage.
+    focusable_total: int = 0
+    #: What the consent-dialog dismissal clicked, or "" if there was nothing.
+    consent_note: str = ""
 
     # -- evidence resolution (SCOPE rule 5.2) ------------------------------
 
@@ -318,4 +329,6 @@ class Recording:
             "stops": [asdict(s) for s in self.stops],
             "candidates": [asdict(c) for c in self.candidates],
             "excluded": [asdict(e) for e in self.excluded],
+            "focusable_total": self.focusable_total,
+            "consent_note": self.consent_note,
         }

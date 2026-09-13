@@ -236,6 +236,85 @@ for _ in range(40):
 time.sleep(1.2)
 send("Page.bringToFront")
 
+# ---- fix 6: dismiss the consent dialog before anything is measured -------
+# Every commercial site has one, and a modal consent dialog correctly confines
+# focus to itself. On ikea.com that meant the Tab sequence recorded 7 stops out
+# of 428 focusable elements, all of them inside the banner, and three criteria
+# reported a pass having examined about 2% of the page. A product that audits
+# cookie banners is not a product.
+#
+# A reject or necessary-only button is preferred over accept: it clears the
+# overlay just as well and consents to less. Known vendor selectors come first
+# because they are exact; the text match is the fallback.
+CONSENT = """
+(function () {
+  var VENDOR = [
+    '#onetrust-reject-all-handler', '#onetrust-accept-btn-handler',
+    '#truste-consent-required', '#truste-consent-button',
+    '.fc-cta-do-not-consent', '.fc-cta-consent',
+    '#didomi-notice-disagree-button', '#didomi-notice-agree-button',
+    'button[mode="primary"][data-testid="uc-deny-all-button"]',
+    '#CybotCookiebotDialogBodyButtonDecline',
+    '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll'
+  ];
+  function visible(e) {
+    if (!e) return false;
+    var r = e.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    var cs = getComputedStyle(e);
+    return cs.visibility !== 'hidden' && cs.display !== 'none';
+  }
+  for (var i = 0; i < VENDOR.length; i++) {
+    var v = document.querySelector(VENDOR[i]);
+    if (visible(v)) { v.click(); return 'vendor:' + VENDOR[i]; }
+  }
+  // Fallback: a button inside something that declares itself a dialog, whose
+  // whole label is a consent verb. Anchored so "Accept returns" does not match.
+  var REJECT = /^(reject all|reject|decline|necessary only|only necessary|do not consent)$/i;
+  var ACCEPT = /^(accept all|accept all cookies|accept|i agree|agree|allow all|got it|ok)$/i;
+  var scopes = document.querySelectorAll(
+    '[role="dialog"],[aria-modal="true"],dialog[open],[id*="consent" i],[class*="consent" i],[id*="cookie" i],[class*="cookie" i]');
+  var best = null, bestKind = null;
+  for (var s2 = 0; s2 < scopes.length; s2++) {
+    if (!visible(scopes[s2])) continue;
+    var btns = scopes[s2].querySelectorAll('button,[role="button"],a[href="#"]');
+    for (var b = 0; b < btns.length; b++) {
+      if (!visible(btns[b])) continue;
+      var label = (btns[b].innerText || btns[b].getAttribute('aria-label') || '').trim();
+      if (REJECT.test(label)) { btns[b].click(); return 'reject:' + label; }
+      if (ACCEPT.test(label) && !best) { best = btns[b]; bestKind = 'accept:' + label; }
+    }
+  }
+  if (best) { best.click(); return bestKind; }
+  return '';
+})()
+"""
+consent = val(CONSENT) or ""
+if consent:
+    # The banner's own teardown re-renders part of the page, and tabbing into a
+    # document mid-render lands on body. Wait for the overlay to actually go and
+    # for the document to be complete again before anything is measured.
+    for _ in range(16):
+        gone = val("(function(){var b=document.querySelector("
+                   "'#onetrust-banner-sdk,[aria-modal=\"true\"]');"
+                   "if(!b) return 1; var r=b.getBoundingClientRect();"
+                   "return (r.width===0||r.height===0)?1:0;})()")
+        if gone:
+            break
+        time.sleep(0.25)
+    for _ in range(20):
+        if val("document.readyState") == "complete":
+            break
+        time.sleep(0.25)
+    time.sleep(1.6)
+    # A banner that is still there after the click was not dismissed, and saying
+    # so matters: the coverage number downstream depends on it.
+    still = val("(function(){var b=document.querySelector("
+                "'#onetrust-banner-sdk,[role=\"dialog\"],[aria-modal=\"true\"]');"
+                "if(!b) return 0; var r=b.getBoundingClientRect();"
+                "return (r.width>0&&r.height>0)?1:0;})()")
+    consent = consent + ("" if not still else " (a dialog is still present)")
+
 # ---- reach the state, then assert the DOM actually changed ---------------
 before = val(ASSERTION)
 if REACH:
@@ -266,6 +345,7 @@ STOP_JS = """
     if (top && top !== e && !e.contains(top) && !top.contains(e)) over = sel(top);
   }
   return {tag: e.tagName, selector: sel(e), anchors: anch(e),
+    parent: e.parentElement ? sel(e.parentElement) : null,
     x: Math.round(r.x + window.scrollX), y: Math.round(r.y + window.scrollY),
     vx: Math.round(r.x), vy: Math.round(r.y),
     w: Math.round(r.width), h: Math.round(r.height), obscured_by: over};
@@ -322,14 +402,23 @@ if reached:
             hit_cap = False
             break
         stops.append(s)
+        # BODY means the sequence wrapped out of the page -- but only once focus
+        # has actually been inside it. Dismissing the consent dialog leaves focus
+        # on body, and the first Tab after that sometimes lands on body again
+        # while the page is still re-rendering. Treating that as a wrap ended the
+        # ikea `loaded` recording after one press, at two stops, both body. A
+        # repeat before focus has entered the page is the same situation.
+        entered = any(x["tag"] not in ("BODY", "HTML") for x in stops)
         if s["tag"] == "BODY":
-            hit_cap = False
-            break
+            if entered:
+                hit_cap = False
+                break
+            continue
         # Any repeat closes the lap, not only a return to the first stop.
         # Comparing against the first alone let a sequence that re-entered
         # the cycle at a different point run on to the cap.
         key = (s["selector"], s["x"], s["y"])
-        if key in seen:
+        if key in seen and entered:
             hit_cap = False
             break
         seen.add(key)
@@ -360,15 +449,30 @@ CANDIDATES = """
                  'treeitem','row','gridcell','radio'];
   function managedByWidget(el) {
     var role = (el.getAttribute('role') || '').toLowerCase();
-    if (MANAGED.indexOf(role) >= 0) return true;
-    // an explicit tabindex="-1" inside a composite is the roving pattern
-    if (el.getAttribute('tabindex') === '-1') {
-      for (var n = el.parentElement; n; n = n.parentElement) {
-        var r = (n.getAttribute('role') || '').toLowerCase();
-        if (COMPOSITE.indexOf(r) >= 0) return true;
-      }
-    }
-    return false;
+    return MANAGED.indexOf(role) >= 0;
+  }
+  // An author writing tabindex="-1" has said, in the only way the platform
+  // offers, that this element is not in the tab sequence. It used to count only
+  // inside one of the ten COMPOSITE roles, and on ikea.com that cost 20 of 39
+  // false positives: carousel controls for off-screen slides carry tabindex="-1"
+  // and their container has no composite role, so the roving-tabindex exclusion
+  // never applied. The ancestor's role was never what made the attribute
+  // deliberate.
+  function optedOut(el) {
+    return el.getAttribute('tabindex') === '-1';
+  }
+  // Visible to somebody. 15 of the 39 ikea false positives were hidden modals,
+  // unmounted React roots and collapsed panels -- #wlo-modal,
+  // #isx-chatbot-render-root, #tugc-rr-pip-frontend-mount-point. The scan
+  // checked visibility nowhere, and on a fixture where everything is visible
+  // that could never show. `visibility` inherits and display:none collapses the
+  // box, so this catches hidden ancestors too.
+  function notVisible(el) {
+    var r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return true;
+    var cs = getComputedStyle(el);
+    return cs.visibility === 'hidden' || cs.display === 'none' ||
+           parseFloat(cs.opacity) === 0;
   }
   // Part of a bigger control rather than a control: a span inside a button
   // inherits cursor:pointer and is not separately reachable, nor should it be.
@@ -388,12 +492,18 @@ CANDIDATES = """
     // one-line experiment; not knowing it fired is how the switch and the
     // tablist went missing for a whole baseline.
     var mw = managedByWidget(el), ic = insideAControl(el);
-    if (mw || ic) {
+    var oo = optedOut(el), nv = notVisible(el);
+    if (mw || ic || oo || nv) {
+      var rule = nv ? 'not-visible' : oo ? 'opted-out'
+                 : mw ? 'managed' : 'inside-control';
+      var why = {
+        'not-visible': 'no box on screen, or hidden by display, visibility or opacity',
+        'opted-out': 'an explicit tabindex="-1": the author removed it from the sequence',
+        'managed': 'a role a composite widget manages with arrow keys',
+        'inside-control': 'inside a larger control, not separately reachable'
+      }[rule];
       ex.push({selector: sel(el), tag: el.tagName, role: el.getAttribute('role'),
-        rule: mw ? 'managed' : 'inside-control',
-        reason: mw ? 'roving tabindex or a role a composite widget manages'
-                   : 'inside a larger control, not separately reachable',
-        source: source});
+        rule: rule, reason: why, source: source});
       if (!NO_EXCLUSIONS) return;
     }
     var s = sel(el);
@@ -407,6 +517,8 @@ CANDIDATES = """
       x: Math.round(r.x + window.scrollX), y: Math.round(r.y + window.scrollY),
       w: Math.round(r.width), h: Math.round(r.height),
       focusable: el.tabIndex >= 0, sources: [source],
+      innerFocusable: el.querySelectorAll(
+        'a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])').length,
       childCount: el.querySelectorAll('a,button,input,select,textarea,[tabindex],[role]').length,
       ownText: Array.prototype.filter.call(el.childNodes, function (n) {
           return n.nodeType === 3 && n.textContent.trim(); }).length > 0});
@@ -506,13 +618,22 @@ if arr.get("objectId"):
 # A delegating container has candidates inside it and no text of its own.
 # The third exclusion, and it was the least visible of the three: it silently
 # removed whole elements after the scan had already accepted them.
+# A container whose function a keyboard user can already reach through a
+# focusable descendant is not unreachable, whatever text it carries of its own.
+# The filter used to require "no text of its own" as well, and 3 of the 39 ikea
+# false positives were wrappers holding both their own text and a focusable
+# child, which satisfied the click-handler rule and escaped the filter.
 kept = []
 for c in cands:
-    if c.get("childCount", 0) > 0 and not c.get("ownText") and not NO_EXCL:
+    inner = c.get("innerFocusable", 0)
+    delegating = c.get("childCount", 0) > 0 and not c.get("ownText")
+    if (inner > 0 or delegating) and not NO_EXCL:
         excluded.append({"selector": c["selector"], "tag": c["tag"], "role": c.get("role"),
                          "rule": "delegating-container",
-                         "reason": "%d focusable descendant(s) and no text of its own"
-                                   % c.get("childCount", 0),
+                         "reason": (("%d focusable descendant(s), so the function is "
+                                     "reachable" % inner) if inner else
+                                    "%d interactive descendant(s) and no text of its own"
+                                    % c.get("childCount", 0)),
                          "source": ",".join(c.get("sources") or [])})
     else:
         kept.append(c)
@@ -537,11 +658,54 @@ if PAIR_CAPTURE and SHOTS:
         time.sleep(0.16)
         st["png_blurred"] = send("Page.captureScreenshot", {"format": "png"})                 .get("result", {}).get("data")
 
+# ---- fix 4: a candidate that no longer exists is not a finding ------------
+# A live page mutates under the recorder. One of the 39 ikea false positives was
+# a selector that no longer resolved by the time it was inspected, so the report
+# named an element that was not there. Each candidate is re-checked against the
+# DOM now that the sequence is finished, and one that has gone, become visible's
+# opposite, or become focusable is dropped with that reason.
+if cands:
+    RECHECK = """
+    (function (sels) {
+      return sels.map(function (s) {
+        var e = null;
+        try { e = document.querySelector(s); } catch (x) { return 'bad-selector'; }
+        if (!e) return 'gone';
+        var r = e.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return 'not-visible';
+        var cs = getComputedStyle(e);
+        if (cs.visibility === 'hidden' || cs.display === 'none') return 'not-visible';
+        if (e.tabIndex >= 0) return 'now-focusable';
+        return 'ok';
+      });
+    })(__SELS__)
+    """
+    verdicts = val(RECHECK.replace("__SELS__", json.dumps([c["selector"] for c in cands])))
+    if isinstance(verdicts, list) and len(verdicts) == len(cands):
+        still = []
+        for c, v in zip(cands, verdicts):
+            if v == "ok" or NO_EXCL:
+                still.append(c)
+            else:
+                excluded.append({"selector": c["selector"], "tag": c["tag"],
+                                 "role": c.get("role"), "rule": "stale",
+                                 "reason": "re-checked after the Tab sequence: " + str(v),
+                                 "source": ",".join(c.get("sources") or [])})
+        cands = still
+
 print("RESULT " + json.dumps({
     "url": URL, "state": STATE, "state_reached": bool(reached), "reach_note": note,
     "stops": stops, "candidates": cands, "excluded": excluded,
     "truncated": truncated,
     "page_height": val("document.documentElement.scrollHeight") or 0,
+    "consent_note": consent,
+    # Fix 5. The denominator for coverage: what a Tab sequence through this page
+    # should have been able to reach. tabindex="-1" is excluded because it is
+    # deliberately out of the sequence.
+    "focusable_total": val(
+        "document.querySelectorAll('a[href],button:not([disabled]),"
+        "input:not([disabled]),select:not([disabled]),textarea:not([disabled]),"
+        "[tabindex]:not([tabindex=\"-1\"]),[contenteditable=\"true\"]').length") or 0,
 }))
 ws.close()
 '''.replace("__SELECTOR_FN__", SELECTOR_FN)
