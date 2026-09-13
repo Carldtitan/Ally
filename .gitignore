@@ -30,3 +30,4 @@ artifacts/
 runs/
 *.db
 __pycache__/
+notes-private/
