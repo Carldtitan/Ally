@@ -285,34 +285,9 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-PROMPT = """You fix accessibility defects by returning find-and-replace pairs.
+from .prompts import PATCHER_FIND_REPLACE
 
-Criterion: __CRITERION__
-Component: __COMPONENT__
-
-What the audit found:
-__FINDINGS__
-
-The source file is __PATH__. Here it is:
---- BEGIN __PATH__ ---
-__SOURCE__
---- END __PATH__ ---
-
-__LESSONS__
-Return JSON only:
-{"rationale": "one sentence", "edits": [{"path": "...", "find": "...", "replace": "..."}]}
-
-Rules for `find`:
-  It must appear EXACTLY ONCE in the file. Include enough surrounding text to
-  be unique; a short fragment that appears twice will be rejected.
-  Copy it character for character from the source above, including whitespace.
-  Never write an elision note such as "rest of the file unchanged": anything
-  you omit from `replace` is deleted.
-
-Fix every listed instance in one response, using the same technique for each.
-Mixing techniques across instances of one component is how a fix breaks voice
-control: the visible text and the announced name stop matching.
-__RETRY__"""
+PROMPT = PATCHER_FIND_REPLACE.content
 
 
 @_op

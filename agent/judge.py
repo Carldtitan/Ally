@@ -38,34 +38,9 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-PROMPT = """You judge WCAG 2.4.3 Focus Order on one page state.
+from .prompts import FOCUS_ORDER_JUDGE
 
-Below are the elements the keyboard reached, in the order Tab reached them, and
-the order a sighted person would read them, derived from their positions on the
-page. Positions are document coordinates in CSS pixels.
-
-A difference between the two orders is not automatically a failure. Decide
-whether this particular difference would disadvantage someone using a keyboard.
-
-Reply as JSON only.
-  matches, or the difference is harmless -> {"status": "passed", "summary": "..."}
-  the difference disadvantages a keyboard user ->
-      {"status": "failed", "evidence_refs": ["stop 3", "stop 5"], "summary": "..."}
-  you cannot tell from this evidence ->
-      {"status": "not_evaluated", "reason": "..."}
-
-evidence_refs is REQUIRED on a failed verdict. Each entry names a stop from the
-list below, written exactly as "stop N", and must be one of the stops where the
-order actually goes wrong. Do not use reason on a failed verdict.
-
-State: __STATE__
-
-Tab order reached these stops, in this order:
-__TAB_ROWS__
-
-Reading order derived from position would be:
-__READING_ROWS__
-"""
+PROMPT = FOCUS_ORDER_JUDGE.content
 
 
 def _client():

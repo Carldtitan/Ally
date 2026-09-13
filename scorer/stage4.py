@@ -37,6 +37,8 @@ import wb_env  # noqa: E402
 wb_env.load_dotenv()
 wb_env.use_certifi_bundle()
 
+import weave  # noqa: E402
+
 from agent.fixloop import FixLoop  # noqa: E402
 from agent.judge import _client, make_judge  # noqa: E402
 from agent.lessons import Lessons  # noqa: E402
@@ -96,6 +98,31 @@ def main() -> None:
     args = ap.parse_args()
 
     use_lessons = args.lessons == "on"
+    cfg = wb_env.bootstrap()
+    weave.init(cfg["ref"])
+
+    # Logged as an evaluation from the start, not written up afterwards. The arm
+    # and the one-line reason for it are attributes, because a delta with no
+    # cause attached means nothing.
+    arm = "treatment (lessons table live)" if use_lessons else "control (no retrieval)"
+    changed = ("Lessons table ON: every patch outcome is written down, and the "
+               "matching rows for this criterion go into the next prompt, "
+               "failures included and labelled as failures."
+               if use_lessons else
+               "Lessons table OFF: the same five pages in the same order with "
+               "nothing retrieved. This is the arm that matters -- a falling "
+               "line with the table on proves nothing by itself, because the "
+               "later pages might simply be easier.")
+    ev = weave.EvaluationLogger(
+        name="stage4-patch-effort",
+        model=f"ally-patcher@lessons-{args.lessons}",
+        dataset="planted-defects",
+        eval_attributes={"arm": arm, "lessons": args.lessons,
+                         "baseline": args.baseline,
+                         "changed_since_previous": changed},
+    )
+    closed_in_order: list[dict] = []
+
     session = Session(args.sandbox)
     judge = make_judge()
     client = _client()
@@ -144,6 +171,29 @@ def main() -> None:
 
         s = loop.summary()
         retrieved = sum(len(o.lesson_ids) for o in outcomes)
+
+        # One prediction per group, so a reader can open any patch and see the
+        # lesson ids that went into the prompt that produced it.
+        for o in outcomes:
+            pred = ev.log_prediction(
+                inputs={"criterion": o.criterion, "component": o.component,
+                        "page": page, "order": i, "lesson_ids": o.lesson_ids,
+                        "lessons_retrieved": len(o.lesson_ids)},
+                output={"status": o.status, "patch_attempts": o.patch_attempts,
+                        "locate_attempts": o.locate_attempts,
+                        "closed": len(o.closed), "created": len(o.created),
+                        "reason": o.reason})
+            pred.log_score("patch-attempts", o.patch_attempts)
+            pred.log_score("closed", 1 if o.status == "closed" else 0)
+            pred.log_score("patch-created-new-findings", len(o.created))
+            pred.finish()
+            if o.status == "closed":
+                closed_in_order.append({
+                    "order": len(closed_in_order) + 1, "criterion": o.criterion,
+                    "component": o.component, "page": page,
+                    "patch_attempts": o.patch_attempts,
+                    "lessons_retrieved": len(o.lesson_ids),
+                    "lesson_ids": o.lesson_ids})
         rows.append({"order": i, "criterion": crit, "groups": s["groups"],
                      "closed": s["closed"], "created": s["created"],
                      "attempts": s["patch_attempts_per_closed"],
@@ -171,8 +221,51 @@ def main() -> None:
           "records\npatch outcomes, so a finding that was never detected produces "
           "no row and the\ntable cannot reach detection at all.")
 
+    # The metric, and the honest version of it. A flat line is still the metric:
+    # the findings are listed individually in the order they closed, so a reader
+    # can see whether later ones took fewer attempts than earlier ones rather
+    # than being asked to trust one average over five pages.
+    print("\nfindings in the order they closed")
+    print(f"{'#':>2} {'criterion':9s} {'component':22s} {'attempts':>8s} "
+          f"{'lessons used':>12s}  lesson ids")
+    for row in closed_in_order:
+        print(f"{row['order']:>2} {row['criterion']:9s} {row['component'][:22]:22s} "
+              f"{row['patch_attempts']:>8d} {row['lessons_retrieved']:>12d}  "
+              f"{row['lesson_ids']}")
+    if not closed_in_order:
+        print("  nothing closed, so there is no effort-per-fix number this run")
+
+    attempts = [r["patch_attempts"] for r in closed_in_order]
+    half = len(attempts) // 2
+    first, second = attempts[:half], attempts[half:]
+    trend = None
+    if first and second:
+        a, b = sum(first) / len(first), sum(second) / len(second)
+        trend = round(b - a, 2)
+        print(f"\nmean attempts, first half {a:.2f} -> second half {b:.2f} "
+              f"(change {trend:+.2f})")
+        if trend >= 0:
+            print("This did not fall. Reported as it is. The table records patch "
+                  "outcomes, so it\ncan only reach patching, and on this evidence "
+                  "it did not help enough to show.")
+
+    ev.log_summary({
+        "arm": arm,
+        "lessons": args.lessons,
+        "closed": sum(r["closed"] for r in rows),
+        "created": sum(r["created"] for r in rows),
+        "patch_attempts_per_closed": (round(sum(attempts) / len(attempts), 2)
+                                      if attempts else None),
+        "mean_attempts_change_first_to_second_half": trend,
+        "lessons_retrieved_total": sum(r["retrieved"] for r in rows),
+        "closed_in_order": closed_in_order,
+        "changed_since_previous": changed,
+    }, auto_summarize=False)
+    ev.finish()
+
     out = ROOT / "artifacts" / f"{args.tag}-stage4.json"
-    out.write_text(json.dumps({"lessons": args.lessons, "rows": rows}, indent=2),
+    out.write_text(json.dumps({"lessons": args.lessons, "rows": rows,
+                               "closed_in_order": closed_in_order}, indent=2),
                    encoding="utf-8")
     print(f"\nsaved {out}")
 

@@ -19,6 +19,8 @@ A patch that closes nine and creates four has closed five.
 
 from __future__ import annotations
 
+import contextlib
+
 import os
 import json
 import time
@@ -94,28 +96,41 @@ class FixLoop:
 
     @_op
     def fix_group(self, group: Group, source_path: str) -> FixOutcome:
+        """Retrieve prior cases, then patch inside a trace tagged with their ids.
+
+        The ids are the mechanism. Without them "patch attempts per closed
+        finding fell" is a line on a chart, and a falling line can equally mean
+        the later findings were easier. With them a reader can open a patch call
+        and see which earlier cases went into the prompt that produced it.
+
+        This used to call `weave.attributes({...}).__enter__()` and never exit
+        it. An unbalanced context manager either leaks the attributes into
+        unrelated later calls or applies to nothing, depending on the
+        implementation, and either way the one claim it exists to support could
+        not be checked. It is a `with` block now, wrapping every patch attempt
+        for this group.
+        """
+        lesson_rows, lesson_text = [], ""
+        if self.lessons is not None:
+            lesson_rows, lesson_text = self.lessons.recall(group)
+
+        ctx = contextlib.nullcontext()
+        if weave is not None:
+            ctx = weave.attributes({
+                "criterion": group.criterion,
+                "component": group.component,
+                "lesson_ids": [r["id"] for r in lesson_rows],
+                "lessons_retrieved": len(lesson_rows),
+            })
+        with ctx:
+            return self._fix_group(group, source_path, lesson_rows, lesson_text)
+
+    def _fix_group(self, group: Group, source_path: str, lesson_rows: list,
+                   lesson_text: str) -> FixOutcome:
         target = self.workdir / source_path
         findings_text = "\n".join(
             f"  - {f.summary}\n    evidence: {', '.join(f.evidence_refs[:4])}"
             for f in group.findings)
-
-        lesson_rows, lesson_text = [], ""
-        if self.lessons is not None:
-            lesson_rows, lesson_text = self.lessons.recall(group)
-            # The retrieved ids go into the trace for this patch call. Without
-            # them, "patch attempts per closed finding fell" is a line with no
-            # mechanism attached, and a falling line can equally mean the later
-            # findings were easier.
-            if weave is not None:
-                try:
-                    weave.attributes({
-                        "criterion": group.criterion,
-                        "component": group.component,
-                        "lesson_ids": [r["id"] for r in lesson_rows],
-                        "lessons_retrieved": len(lesson_rows),
-                    }).__enter__()
-                except Exception:
-                    pass
 
         outcome = FixOutcome(criterion=group.criterion, component=group.component,
                              status="could_not_locate",
