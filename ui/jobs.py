@@ -71,6 +71,11 @@ class Job:
     id: str
     url: str
     repo: str
+    #: Which branch to read the source from. Empty means the repository's
+    #: default. It exists so a fix can be prepared against a branch that is not
+    #: merged yet -- auditing the deployed page while patching the branch that
+    #: will replace it.
+    branch: str = ""
     #: "queued" | "running" | "done" | "failed"
     status: str = "queued"
     phase: str = "clone"
@@ -309,11 +314,13 @@ def prepare_build(session, checkout: str) -> tuple[str, str]:
 
 
 @_op
-def clone_repo(session, owner: str, name: str, job_id: str) -> str:
+def clone_repo(session, owner: str, name: str, job_id: str,
+               branch: str = "") -> str:
     """A shallow clone of the repo the user named, inside the sandbox."""
     url = f"https://github.com/{owner}/{name}.git"
+    at = f"--branch {branch} " if branch else ""
     r = session.exec(
-        f"rm -rf {CHECKOUT} && git clone --depth 1 -q {url} {CHECKOUT} && "
+        f"rm -rf {CHECKOUT} && git clone --depth 1 {at}-q {url} {CHECKOUT} && "
         f"cd {CHECKOUT} && git rev-parse --short HEAD", timeout=420)
     out = (r.result or "").strip()
     if not out or "fatal" in out.lower():
@@ -358,13 +365,12 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
         client = getattr(audit, "weave_client", None)
         if client is not None:
             job.trace_url = f"https://wandb.ai/{wb_env.bootstrap()['ref']}/weave"
-    sha = clone_repo(audit.session, owner, name, job.id)
+    sha = clone_repo(audit.session, owner, name, job.id, job.branch)
     job.say("clone", f"At {sha}")
 
     job.source = guess_source(audit.session, job.url, CHECKOUT)
     if not job.source:
         raise RuntimeError("no HTML-like file found in the repository to patch")
-    job.say("clone", f"The page is backed by {job.source}")
 
     # The loaded page always. Whether the menu and dialog passes are worth
     # running is a question about the page, not a question for whoever pasted the
@@ -379,7 +385,7 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     # page alone, then discover, then start the rest -- so for the first minute
     # there was one sandbox on screen and nothing to suggest more were coming.
     from ui.fleet import Lane, MAX_SANDBOXES, run_lanes
-    from ui.routes import routes_from_repo
+    from ui.routes import routes_from_repo, sources_by_page
 
     # Discover more routes than there are sandboxes. A route that turns out to
     # render a screen already seen frees its slot for the next one.
@@ -387,6 +393,16 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     if not all_urls:
         all_urls = [job.url]
     urls = all_urls[:MAX_SANDBOXES]
+
+    # The file behind each page. The router is the only thing that knows, and
+    # it also answers for the entry page: guess_source picks index.html on a
+    # React project, which is seven lines with no control in it.
+    try:
+        page_sources = sources_by_page(audit.session, CHECKOUT, job.url)
+    except Exception:
+        page_sources = {}
+    job.source = page_sources.get(job.url.rstrip("/")) or job.source
+    job.say("clone", f"The page is backed by {job.source}")
 
     if len(urls) > 1:
         job.say("audit", f"{len(urls)} routes declared in the repository: "
@@ -513,7 +529,11 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     failed = [r for r in results if r.status == "failed"]
     job.say("audit", f"{len(failed)} finding(s) across {len(results)} check(s) "
                      f"on {sum(1 for l in lanes if l.status == 'done')} page(s)")
-    if job.pages:
+    # Name the file behind every page, not just the entry one, and do it here
+    # so the answer is on screen even when the fix step is skipped.
+    for pg in job.pages:
+        pg["source"] = page_sources.get(pg["url"].split("  (")[0], "") or pg.get("source", "")
+    if job.pages and not job.pages[0].get("source"):
         job.pages[0]["source"] = job.source
 
     job.findings = [r.to_dict() for r in results]
@@ -552,7 +572,7 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     loop.workdir = RemoteTree(audit.session, CHECKOUT)
 
     job.say("fix", "Writing patches, then rebuilding and re-auditing each one")
-    outcomes = loop.run(job.source)
+    outcomes = loop.run(job.source, page_sources)
     for o in outcomes:
         job.patches.append({
             "criterion": o.criterion, "component": o.component,
@@ -595,12 +615,14 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
 
 
 def start(url: str, repo: str, states: list[str] | None = None,
-          want_fix: bool = True, want_pr: bool = True) -> Job:
+          want_fix: bool = True, want_pr: bool = True,
+          branch: str = "") -> Job:
     """Begin a job and return immediately. The UI polls it.
 
     `states` empty means "you decide", which is what the UI now sends.
     """
-    job = Job(id=f"job-{uuid.uuid4().hex[:8]}", url=url.strip(), repo=repo.strip())
+    job = Job(id=f"job-{uuid.uuid4().hex[:8]}", url=url.strip(), repo=repo.strip(),
+              branch=(branch or "").strip())
     with _LOCK:
         JOBS[job.id] = job
 

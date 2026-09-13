@@ -417,13 +417,21 @@ class FixLoop:
 
     # -- the whole pass ---------------------------------------------------
 
-    def run(self, source_path: str) -> list[FixOutcome]:
+    def run(self, source_path: str, sources: dict | None = None) -> list[FixOutcome]:
+        """`sources` maps a page URL to the file that draws it.
+
+        Without it every group was sent the entry page's source file. On a
+        React app that file is index.html -- seven lines, no control in it --
+        so a finding on /verify was handed a file its fix could not be in.
+        """
         groups = group_findings(self.audit.results)
         print(f"\n{len(groups)} group(s) to fix "
               f"(findings grouped by component, then criterion)")
         for g in groups:
-            print(f"  [{g.criterion} {g.component}] {len(g.findings)} finding(s)")
-            outcome = self.fix_group(g, source_path)
+            src = (sources or {}).get(g.page) or source_path
+            print(f"  [{g.criterion} {g.component}] {len(g.findings)} finding(s)"
+                  f"  in {src}")
+            outcome = self.fix_group(g, src)
             self.outcomes.append(outcome)
             print(f"      -> {outcome.status}  "
                   f"locate={outcome.locate_attempts} patch={outcome.patch_attempts}  "

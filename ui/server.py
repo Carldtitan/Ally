@@ -556,7 +556,8 @@ class Handler(BaseHTTPRequestHandler):
             states = payload.get("states") or ["loaded"]
             job = jobs.start(url, repo, states=states,
                              want_fix=bool(payload.get("fix", True)),
-                             want_pr=bool(payload.get("pr", True)))
+                             want_pr=bool(payload.get("pr", True)),
+                             branch=(payload.get("branch") or "").strip())
             return self._json(job.to_dict(), 202)
 
         return self._json({"error": "no such endpoint"}, 404)
