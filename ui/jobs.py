@@ -684,6 +684,14 @@ def _run(job: Job, states: list[str], want_fix: bool, want_pr: bool) -> None:
     if not want_pr:
         job.say("pr", "Diff ready. Pull request not requested.")
         return
+    closed_total = sum(p.get("closed", 0) for p in job.patches)
+    if not closed_total:
+        job.pr_blocked = (
+            "No pull request: the re-audit did not confirm a single fix, so "
+            "there is nothing here worth sending. What each attempt did, and "
+            "why it failed, is in the table above.")
+        job.say("pr", job.pr_blocked, "warn")
+        return
     if not _can_push(owner, name):
         job.pr_blocked = (f"No write access to {owner}/{name}, so no branch was "
                           f"pushed. The diff above is the complete change.")

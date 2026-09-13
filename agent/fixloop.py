@@ -20,6 +20,7 @@ A patch that closes nine and creates four has closed five.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 
 import os
 import json
@@ -174,6 +175,10 @@ class FixLoop:
 
         patch_attempts = 0
         retry_note = ""
+        # Every attempt starts from the file as it was. Without this, attempt
+        # five was patching a file four broken patches deep, and the diff that
+        # reached the pull request was the wreckage of all of them.
+        original = target.read_text(encoding="utf-8")
 
         while patch_attempts < MAX_PATCH_ATTEMPTS:
             # Each patch attempt gets its OWN budget of three locate attempts.
@@ -245,6 +250,23 @@ class FixLoop:
                 continue
 
             closed, created = self.reaudit(group)
+            if self.blocked:
+                # The patch applied and then did not build. That is a different
+                # failure from "the fix did not work", and the compiler already
+                # said what is wrong -- so say it, and start the next attempt
+                # from the file as it was rather than from the wreck.
+                target.write_text(original, encoding="utf-8")
+                outcome.status = "still_failing"
+                outcome.reason = self.blocked
+                retry_note = ("\n\nYour previous patch was applied and the project "
+                              "then FAILED TO BUILD. The edit was not valid code. "
+                              "Here is what the build said:\n"
+                              + self.blocked[-700:]
+                              + "\n\nStart again from the original file, keep the "
+                                "JSX balanced, and never move a closing tag away "
+                                "from its opening tag.")
+                self.blocked = ""
+                continue
             # Only this group's own targets count as closed by this patch.
             mine = {f"{group.criterion}:{t}" for t in group.targets}
             outcome.closed = sorted(set(closed) & mine)
@@ -281,12 +303,20 @@ class FixLoop:
                                   r.split(":", 1)[1] for r in remaining[:4]) + ".")
                 continue
 
+            # Nothing closed and nothing created: the fix simply did not work.
+            # Put the file back before trying another technique.
+            target.write_text(original, encoding="utf-8")
             retry_note = ("\n\nYour previous patch applied cleanly but the re-audit "
                           "still reports the problem. The fix was wrong, not the "
                           "location. Try a different technique.")
 
         outcome.status = "still_failing"
-        outcome.reason = f"still failing after {MAX_PATCH_ATTEMPTS} patches"
+        outcome.reason = outcome.reason or (
+            f"still failing after {MAX_PATCH_ATTEMPTS} patches")
+        if not outcome.closed:
+            # Leave the tree as we found it. A change nobody could verify must
+            # not travel on into a diff or a pull request.
+            target.write_text(original, encoding="utf-8")
         return outcome
 
     # -- the locate retry loop -------------------------------------------
@@ -330,7 +360,7 @@ class FixLoop:
                 if real is None:
                     bad.append(e)
                 else:
-                    resolved.append(Edit(find=real, replace=e.replace))
+                    resolved.append(dataclasses.replace(e, find=real))
             if not bad:
                 edits = resolved
             if bad:
