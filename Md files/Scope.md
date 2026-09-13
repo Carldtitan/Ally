@@ -130,7 +130,7 @@ The other four defects all live in the loaded state.
 
 ## Verification rules
 
-Six rules, each from a bug found on 2026-09-12. Every one of them produced a
+Seven rules, each from a bug found while building this. Every one of them produced a
 clean-looking wrong answer, which is the same category as the nine false passes
 in the AccessiFix retrospective: not a crash, not an error, a confident result
 that was not true.
@@ -175,6 +175,16 @@ viewport-sized.
 below the fold was compared against unrelated pixels. Document coordinates stay
 the basis for reading order; viewport coordinates are carried alongside for
 cropping.*
+
+**7. No verification may skip a check for cost.** If a check is too expensive
+to run every time, it runs on a schedule and the skip is reported, never silent.
+A verification that quietly omits a check reports a pass for something it did
+not look at.
+*Bug: the rule-1 test passed `judge=None`, which skipped the only check that
+uses a model, to save a model call. It was written on the same day the rules
+were, and defeated by an optimisation the day after. With the judge running,
+the control page does produce findings: on the clean dialog 2.4.3 reports two
+address inputs as out of order, two wrong out of six reported.*
 
 **The test that enforces rule 1** is `tests/test_clean_page.py`. It runs every
 check against the clean page and fails on any finding. That one test would have

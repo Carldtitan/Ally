@@ -41,8 +41,14 @@ from agent.session import Session  # noqa: E402
 CLEAN = "https://ally-clean-app.vercel.app/"
 
 
-def count_findings(session: Session, url: str, states, run_id: str) -> tuple[int, int, list]:
-    """Returns (failed, not_evaluated, detail rows)."""
+def count_findings(session: Session, url: str, states, run_id: str,
+                   judge=None) -> tuple[int, int, list]:
+    """Returns (failed, not_evaluated, detail rows).
+
+    `judge` is required rather than defaulted away: verification rule 7 says no
+    verification may skip a check for cost. This file used to pass judge=None,
+    which silently left 2.4.3 unverified while reporting a pass.
+    """
     failed = not_eval = 0
     rows = []
     for state in states:
@@ -52,7 +58,7 @@ def count_findings(session: Session, url: str, states, run_id: str) -> tuple[int
             continue
         for criterion, fn in checks.CHECKS.items():
             with checks.criterion_tag(criterion, state, url):
-                r = fn(rec) if criterion != "2.4.3" else fn(rec, judge=None)
+                r = fn(rec) if criterion != "2.4.3" else fn(rec, judge=judge)
             if r.status == "failed":
                 failed += 1
                 rows.append((state, criterion, "failed", r.summary))
@@ -74,10 +80,13 @@ def main() -> int:
     states = [s.strip() for s in args.states.split(",") if s.strip()]
     bad = 0
 
+    from agent.judge import make_judge
+    judge = make_judge()
+
     print("rule 1 on the patcher: the control page must be unchanged by patching\n")
 
     clean_failed, clean_ne, clean_rows = count_findings(
-        session, CLEAN, states, "patchtest-clean")
+        session, CLEAN, states, "patchtest-clean", judge)
     print(f"clean page  : {clean_failed} failed, {clean_ne} not evaluated")
     for state, crit, status, detail in clean_rows:
         print(f"   {state:13s} {crit:7s} {status:14s} {str(detail)[:58]}")
@@ -99,7 +108,7 @@ def main() -> int:
         return 1 if bad else 0
 
     p_failed, p_ne, p_rows = count_findings(
-        session, args.patched, states, "patchtest-patched")
+        session, args.patched, states, "patchtest-patched", judge)
     print(f"patched page: {p_failed} failed, {p_ne} not evaluated")
     for state, crit, status, detail in p_rows:
         print(f"   {state:13s} {crit:7s} {status:14s} {str(detail)[:58]}")

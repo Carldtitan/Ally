@@ -57,7 +57,13 @@ def main() -> int:
     states = [s.strip() for s in args.states.split(",") if s.strip()]
 
     judge = None
-    if not args.no_judge:
+    if args.no_judge:
+        # Verification rule 7: a skip is reported, never silent. A run with the
+        # judge off has NOT verified 2.4.3 and must not read as if it had.
+        print("!! JUDGE SKIPPED (--no-judge). 2.4.3 is NOT verified by this run.")
+        print("!! Do not read a pass below as covering it.
+")
+    else:
         from agent.judge import make_judge
         judge = make_judge()
 

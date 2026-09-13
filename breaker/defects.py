@@ -194,34 +194,51 @@ VISIBLE = [
 # 2.4.11 Focus Not Obscured - three sticky elements drawn over controls.
 # --------------------------------------------------------------------------
 OBSCURED = [
+    # Each cover is sized over exactly ONE control, so one cover maps to one
+    # planted instance. The first version used three full-width fixed bars,
+    # which obscured five controls between them: the check was right and the
+    # fixture was wrong, and 2.4.11 scored 0/3 with eight reported targets.
+    #
+    # Two consequences of that, both deliberate here:
+    #
+    #   * `selector` names the COVERED control, not the cover. The check
+    #     reports the element that is obscured, and a manifest recording the
+    #     element doing the obscuring can never be matched against it.
+    #   * Position is absolute in document coordinates, not fixed in the
+    #     viewport. A fixed cover sits over whatever happens to be at that
+    #     viewport position when focus scrolls the page, so it covers a
+    #     different control from one stop to the next.
+    #
+    # Coordinates are measured from the control page: #action_output at
+    # (223,337), #full_name at (124,473), #email at (124,533), each 185x21,
+    # with Submit at y=565 left clear.
     Defect(
-        criterion="2.4.11", instance=1, region="page foot",
-        state="loaded", selector="#ally-cover-1",
-        expect="a fixed bar at the foot of the viewport covers the switch when "
-               "focus lands on it",
-        css="#ally-cover-1 { position: fixed; left: 0; right: 0; bottom: 0; "
-            "height: 120px; background: #23150f; color: #fff; z-index: 9000; "
-            "padding: 10px 16px; }",
-        html='<div id="ally-cover-1">Cookie preferences</div>',
+        criterion="2.4.11", instance=1, region="menu section, last action field",
+        state="loaded", selector="#action_output",
+        expect="a panel is painted over the last-action field, so the element "
+               "with focus is not the element on screen at that point",
+        css="#ally-cover-1 { position: absolute; left: 217px; top: 330px; "
+            "width: 200px; height: 34px; background: #23150f; color: #fff; "
+            "z-index: 9000; padding: 6px 10px; font-size: 12px; }",
+        html='<div id="ally-cover-1">Cookie notice</div>',
     ),
     Defect(
-        criterion="2.4.11", instance=2, region="page head",
-        state="loaded", selector="#ally-cover-2",
-        expect="a fixed banner at the top of the viewport covers the delivery "
-               "button when focus lands on it",
-        css="#ally-cover-2 { position: fixed; left: 0; right: 0; top: 0; "
-            "height: 210px; background: #b85632; color: #fff; z-index: 9000; "
-            "padding: 10px 16px; }",
-        html='<div id="ally-cover-2">Announcement</div>',
+        criterion="2.4.11", instance=2, region="signup form, name field",
+        state="loaded", selector="#full_name",
+        expect="a panel is painted over the name field",
+        css="#ally-cover-2 { position: absolute; left: 118px; top: 466px; "
+            "width: 200px; height: 34px; background: #b85632; color: #fff; "
+            "z-index: 9000; padding: 6px 10px; font-size: 12px; }",
+        html='<div id="ally-cover-2">Live chat</div>',
     ),
     Defect(
-        criterion="2.4.11", instance=3, region="signup form",
-        state="loaded", selector="#ally-cover-3",
-        expect="a fixed panel covers the submit control when focus lands on it",
-        css="#ally-cover-3 { position: fixed; left: 0; width: 640px; top: 520px; "
-            "height: 110px; background: #3f765c; color: #fff; z-index: 9000; "
-            "padding: 10px 16px; }",
-        html='<div id="ally-cover-3">Live chat</div>',
+        criterion="2.4.11", instance=3, region="signup form, email field",
+        state="loaded", selector="#email",
+        expect="a panel is painted over the email field",
+        css="#ally-cover-3 { position: absolute; left: 118px; top: 526px; "
+            "width: 200px; height: 34px; background: #3f765c; color: #fff; "
+            "z-index: 9000; padding: 6px 10px; font-size: 12px; }",
+        html='<div id="ally-cover-3">Newsletter</div>',
     ),
 ]
 
