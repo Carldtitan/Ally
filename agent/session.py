@@ -56,7 +56,7 @@ class Session:
             f"pkill -f chromium; sleep 2; DISPLAY=:0 nohup chromium {CHROME_FLAGS} "
             "about:blank > /tmp/chromium.log 2>&1 & echo ok", timeout=150)
         self.sb.process.exec("pip install --quiet websocket-client 2>&1 | tail -1; true",
-                             timeout=240)
+                             timeout=240)  # noqa: E501
         time.sleep(3)
         self._ready = True
 
@@ -73,6 +73,42 @@ class Session:
             except Exception:
                 pass
 
+    def exec(self, cmd: str, timeout: int = 300, tries: int = 3):
+        """Run a command in the sandbox, retrying a dropped connection.
+
+        A baseline drives six pages across four states, which is a few hundred
+        round trips, and the Daytona connection drops occasionally with
+        IncompleteRead. Without a retry, one dropped read ends a run that was
+        twenty minutes in. The retry is on the transport, not on a command that
+        ran and failed: a non-zero exit is returned to the caller as before.
+        """
+        import time as _t
+
+        last = None
+        for attempt in range(tries):
+            try:
+                return self.sb.process.exec(cmd, timeout=timeout)
+            except Exception as exc:
+                last = exc
+                text = f"{type(exc).__name__}: {exc}"
+                transient = any(w in text for w in (
+                    "IncompleteRead", "Connection broken", "RemoteDisconnected",
+                    "Connection aborted", "timed out", "ConnectionResetError"))
+                if not transient or attempt == tries - 1:
+                    raise
+                wait = 2 * (attempt + 1)
+                print(f"    sandbox connection dropped ({type(exc).__name__}); "
+                      f"retrying in {wait}s")
+                _t.sleep(wait)
+                try:            # the sandbox may have been stopped under us
+                    if str(self.client.get(self.id).state) != "SandboxState.STARTED":
+                        self.client.start(self.sb)
+                        self._ready = False
+                        self.start_browser()
+                except Exception:
+                    pass
+        raise last
+
     # -- recording --------------------------------------------------------
 
     def record(self, url: str, state: str, run_id: str,
@@ -84,8 +120,7 @@ class Session:
 
         self.sb.fs.upload_file(build_runner(url, state, max_tabs).encode(),
                                "/tmp/ally_record.py")
-        res = self.sb.process.exec("cd /tmp && python3 ally_record.py 2>&1 | tail -4",
-                                   timeout=600)
+        res = self.exec("cd /tmp && python3 ally_record.py 2>&1 | tail -4", timeout=600)
         out = (res.result or "").strip()
         line = next((l for l in out.splitlines() if l.startswith("RESULT")), None)
         if not line:

@@ -122,13 +122,13 @@ ws.close()
 def run_axe(session, url: str) -> AxeResult:
     """Scan one URL with the bundled axe-core inside the session's sandbox."""
     session.start_browser()
-    check = session.sb.process.exec(INSTALL.replace("__VERSION__", AXE_VERSION), timeout=420)
+    check = session.exec(INSTALL.replace("__VERSION__", AXE_VERSION), timeout=420)
     if "READY" not in (check.result or ""):
         return AxeResult(ran=False, reason="axe-core could not be bundled into the sandbox")
 
     session.sb.fs.upload_file(RUNNER.replace("__URL__", json.dumps(url)).encode(),
                               "/tmp/ally_axe.py")
-    res = session.sb.process.exec("cd /tmp && python3 ally_axe.py 2>&1 | tail -3", timeout=420)
+    res = session.exec("cd /tmp && python3 ally_axe.py 2>&1 | tail -3", timeout=420)
     out = (res.result or "").strip()
     line = next((l for l in out.splitlines() if l.startswith("RESULT")), None)
     if not line:
