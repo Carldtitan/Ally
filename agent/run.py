@@ -28,6 +28,7 @@ import wb_env  # noqa: E402
 from agent.audit import Audit, DEFAULT_STATES  # noqa: E402
 from agent.fixloop import FixLoop  # noqa: E402
 from agent.judge import _client  # noqa: E402
+from agent import pr as pr_mod  # noqa: E402
 
 REPO = "https://github.com/Carldtitan/Ally.git"
 CHECKOUT = "/tmp/ally-work"
@@ -72,6 +73,9 @@ def main() -> None:
     ap.add_argument("--states", default=",".join(DEFAULT_STATES))
     ap.add_argument("--no-fix", action="store_true")
     ap.add_argument("--no-weave", action="store_true")
+    ap.add_argument("--pr", action="store_true",
+                    help="push the patched branch and open a pull request")
+    ap.add_argument("--repo", default="Carldtitan/Ally")
     args = ap.parse_args()
 
     wb_env.load_dotenv()
@@ -109,10 +113,30 @@ def main() -> None:
         print(f"patch attempts per closed finding: {s['patch_attempts_per_closed']}")
     print("=" * 74)
 
+    pr_result = None
+    if args.pr:
+        print("\nopening a pull request ...")
+        weave_url = ""
+        if audit.weave_client is not None:
+            ent = os.environ.get("WANDB_ENTITY", "")
+            proj = os.environ.get("WANDB_PROJECT", "ally")
+            weave_url = f"https://wandb.ai/{ent}/{proj}/weave"
+        body = pr_mod.build_body(audit, s, outcomes, weave_url)
+        pr_result = pr_mod.open_pull_request(
+            audit.session, args.repo, audit.run_id, body, CHECKOUT)
+        if pr_result.get("url"):
+            print(f"  {pr_result['url']}")
+        else:
+            print(f"  no pull request: {pr_result.get('error')}")
+            if pr_result.get("log"):
+                print(f"  {pr_result['log'][-200:]}")
+
     out = audit.save()
     extra = json.loads(out.read_text(encoding="utf-8"))
     extra["fix"] = {"summary": s,
                     "outcomes": [o.__dict__ for o in outcomes]}
+    if pr_result:
+        extra["pull_request"] = pr_result
     out.write_text(json.dumps(extra, indent=2), encoding="utf-8")
     print(f"saved {out}")
 

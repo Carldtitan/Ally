@@ -42,6 +42,17 @@ def _rows(results, status: str):
     return [r for r in results if r.status == status]
 
 
+def cell(text) -> str:
+    """Make text safe for a markdown table cell.
+
+    An accessible name can contain a newline: the control page's switch is
+    announced as "Notifications" followed by a line break and "Off". A newline
+    inside a cell ends the row, so the table renders broken from that point on,
+    and a pipe splits the cell for the same reason.
+    """
+    return " ".join(str(text or "").split()).replace("|", "\\|")
+
+
 def build_body(audit, fix_summary: dict, outcomes, weave_url: str = "") -> str:
     """The PR description. Facts that executed, nothing else."""
     res = audit.results
@@ -69,8 +80,8 @@ def build_body(audit, fix_summary: dict, outcomes, weave_url: str = "") -> str:
     if failed:
         lines += ["| Criterion | State | Finding | Evidence |", "|---|---|---|---|"]
         for r in failed:
-            lines.append(f"| {r.criterion} | {r.state} | {r.summary} | "
-                         f"`{', '.join(r.evidence_refs[:3])}` |")
+            lines.append(f"| {r.criterion} | {r.state} | {cell(r.summary)} | "
+                         f"`{cell(', '.join(r.evidence_refs[:3]))}` |")
         lines.append("")
 
     if ne:
@@ -79,7 +90,7 @@ def build_body(audit, fix_summary: dict, outcomes, weave_url: str = "") -> str:
                   "not a criterion that passed.", "",
                   "| Criterion | State | Reason |", "|---|---|---|"]
         for r in ne:
-            lines.append(f"| {r.criterion} | {r.state} | {r.reason} |")
+            lines.append(f"| {r.criterion} | {r.state} | {cell(r.reason)} |")
         lines.append("")
 
     lines += [
