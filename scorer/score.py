@@ -139,24 +139,44 @@ def main() -> None:
             page = PAGE_OF[crit]
             url = f"{BROKEN_BASE}/{page}.html"
             print(f"\n=== {crit}  {url}")
+            saved = ROOT / "artifacts" / f"{args.tag}-{page}.json"
+            if saved.exists():
+                # Resume: a page already audited under this tag is not redone.
+                # A crash twenty minutes in should not cost the pages that
+                # already finished.
+                print("  already audited under this tag, reusing")
+                results[crit] = json.loads(saved.read_text(encoding="utf-8"))
+                continue
             audit = Audit(url, sandbox_id=args.sandbox, states=states,
                           run_id=f"{args.tag}-{page}")
             if shared is not None:
                 audit.session = shared
             shared = audit.session
-            audit.run()
-            audit.save()
-            results[crit] = json.loads(
-                (ROOT / "artifacts" / f"{audit.run_id}.json").read_text(encoding="utf-8"))
+            try:
+                audit.run()
+                audit.save()
+                results[crit] = json.loads(saved.read_text(encoding="utf-8"))
+            except Exception as exc:
+                # Record the page as unaudited rather than losing the run. An
+                # absent page is reported as absent, never as zero findings.
+                print(f"  FAILED: {type(exc).__name__}: {str(exc)[:110]}")
+                print("  continuing; this page will read as not audited")
 
         print(f"\n=== clean  {CLEAN_URL}")
-        clean = Audit(CLEAN_URL, sandbox_id=args.sandbox, states=states,
-                      run_id=f"{args.tag}-clean")
-        clean.session = shared
-        clean.run()
-        clean.save()
-        clean_run = json.loads(
-            (ROOT / "artifacts" / f"{clean.run_id}.json").read_text(encoding="utf-8"))
+        clean_path = ROOT / "artifacts" / f"{args.tag}-clean.json"
+        if clean_path.exists():
+            print("  already audited under this tag, reusing")
+            clean_run = json.loads(clean_path.read_text(encoding="utf-8"))
+        else:
+            try:
+                clean = Audit(CLEAN_URL, sandbox_id=args.sandbox, states=states,
+                              run_id=f"{args.tag}-clean")
+                clean.session = shared
+                clean.run()
+                clean.save()
+                clean_run = json.loads(clean_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                print(f"  FAILED: {type(exc).__name__}: {str(exc)[:110]}")
     else:
         for crit in CRITERIA:
             p = ROOT / "artifacts" / f"{args.tag}-{PAGE_OF[crit]}.json"

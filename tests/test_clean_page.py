@@ -48,10 +48,18 @@ def main() -> int:
     ap.add_argument("--sandbox", default=os.environ.get("ALLY_SANDBOX"))
     ap.add_argument("--url", default=CLEAN_URL)
     ap.add_argument("--states", default=",".join(STATES))
+    ap.add_argument("--no-judge", action="store_true",
+                    help="skip the model call; the 2.4.3 row then reads "
+                         "not_evaluated rather than being judged")
     args = ap.parse_args()
 
     session = Session(args.sandbox)
     states = [s.strip() for s in args.states.split(",") if s.strip()]
+
+    judge = None
+    if not args.no_judge:
+        from agent.judge import make_judge
+        judge = make_judge()
 
     print(f"clean page: {args.url}")
     print("the correct output of our five here is nothing at all\n")
@@ -72,10 +80,13 @@ def main() -> int:
 
         for criterion, fn in checks.CHECKS.items():
             with checks.criterion_tag(criterion, state, args.url):
-                # No judge: 2.4.3 then reports not_evaluated rather than
-                # spending a model call, and a *failure* here would still be a
-                # false positive worth failing on.
-                result = fn(rec) if criterion != "2.4.3" else fn(rec, judge=None)
+                # The judge runs here too. Passing judge=None skipped the one
+                # check that uses a model, so the test could not see a model
+                # false positive on the control page -- and there is one: on
+                # the clean dialog, 2.4.3 reports two of its inputs as out of
+                # order. Rule 1 says every check runs against the clean page;
+                # excluding the expensive one defeats it.
+                result = fn(rec) if criterion != "2.4.3" else fn(rec, judge=judge)
             ran += 1
             if result.status == "failed":
                 findings.append(result)

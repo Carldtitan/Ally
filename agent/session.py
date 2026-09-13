@@ -73,7 +73,7 @@ class Session:
             except Exception:
                 pass
 
-    def exec(self, cmd: str, timeout: int = 300, tries: int = 3):
+    def exec(self, cmd: str, timeout: int = 300, tries: int = 4):
         """Run a command in the sandbox, retrying a dropped connection.
 
         A baseline drives six pages across four states, which is a few hundred
@@ -93,10 +93,13 @@ class Session:
                 text = f"{type(exc).__name__}: {exc}"
                 transient = any(w in text for w in (
                     "IncompleteRead", "Connection broken", "RemoteDisconnected",
-                    "Connection aborted", "timed out", "ConnectionResetError"))
+                    "Connection aborted", "timed out", "ConnectionResetError",
+                    # local network, not the sandbox: DNS and pool exhaustion
+                    "NameResolutionError", "getaddrinfo", "Max retries exceeded",
+                    "Temporary failure in name resolution"))
                 if not transient or attempt == tries - 1:
                     raise
-                wait = 2 * (attempt + 1)
+                wait = 3 * (attempt + 1)
                 print(f"    sandbox connection dropped ({type(exc).__name__}); "
                       f"retrying in {wait}s")
                 _t.sleep(wait)
